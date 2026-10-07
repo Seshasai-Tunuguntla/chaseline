@@ -1,15 +1,16 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { loadJson } from "../lib/data";
 import { deathBowlers, topBatters } from "../lib/explorer";
-import { average, fixed, ratio, strikeRate } from "../lib/format";
-import type { BattersFile, DeathBowlersFile, MatchupFile, SiteIndex, VenueRow } from "../lib/types";
+import { average, fixed, formatDate, ratio, strikeRate } from "../lib/format";
+import type { BattersFile, Comeback, DeathBowlersFile, MatchupFile, SiteIndex, VenueRow } from "../lib/types";
 
-type Tab = "matchups" | "death" | "batters" | "venues";
+type Tab = "matchups" | "death" | "batters" | "venues" | "comebacks";
 const TABS: [Tab, string][] = [
   ["matchups", "Batter v bowler"],
   ["death", "Death-over bowlers"],
   ["batters", "Strike rates"],
   ["venues", "Venues"],
+  ["comebacks", "Comebacks"],
 ];
 
 function SeasonRange({ seasons, from, to, set }: { seasons: number[]; from: number; to: number; set: (f: number, t: number) => void }) {
@@ -62,7 +63,7 @@ function Batters({ seasons }: { seasons: number[] }) {
           <thead><tr><th scope="col">#</th><th scope="col">Batter</th><th scope="col">SR</th><th scope="col">Runs</th><th scope="col">Balls</th><th scope="col">Avg</th><th scope="col">4s</th><th scope="col">6s</th></tr></thead>
           <tbody>
             {rows.map((b, i) => (
-              <tr key={b.id}><td>{i + 1}</td><th scope="row"><a href={`#/player/${b.id}`}>{b.name}</a></th><td className="num hl-n">{b.sr.toFixed(1)}</td><td>{b.runs}</td><td>{b.balls}</td><td>{average(b.runs, b.outs)}</td><td>{b.fours}</td><td>{b.sixes}</td></tr>
+              <tr key={b.id}><td>{i + 1}</td><th scope="row"><a href={`/player/${b.id}`}>{b.name}</a></th><td className="num hl-n">{b.sr.toFixed(1)}</td><td>{b.runs}</td><td>{b.balls}</td><td>{average(b.runs, b.outs)}</td><td>{b.fours}</td><td>{b.sixes}</td></tr>
             ))}
           </tbody>
         </table>
@@ -89,13 +90,39 @@ function Death({ seasons }: { seasons: number[] }) {
           <thead><tr><th scope="col">#</th><th scope="col">Bowler</th><th scope="col">Econ</th><th scope="col">Wkts</th><th scope="col">Balls</th><th scope="col">Runs</th><th scope="col">Balls/wkt</th></tr></thead>
           <tbody>
             {rows.map((b, i) => (
-              <tr key={b.id}><td>{i + 1}</td><th scope="row"><a href={`#/player/${b.id}`}>{b.name}</a></th><td className="num hl-n">{b.econ.toFixed(2)}</td><td>{b.wickets}</td><td>{b.balls}</td><td>{b.runs}</td><td>{b.wickets ? (b.balls / b.wickets).toFixed(1) : "—"}</td></tr>
+              <tr key={b.id}><td>{i + 1}</td><th scope="row"><a href={`/player/${b.id}`}>{b.name}</a></th><td className="num hl-n">{b.econ.toFixed(2)}</td><td>{b.wickets}</td><td>{b.balls}</td><td>{b.runs}</td><td>{b.wickets ? (b.balls / b.wickets).toFixed(1) : "—"}</td></tr>
             ))}
           </tbody>
         </table>
         {!rows.length && <p className="notice">No bowler has bowled that many death-over balls in this range. Lower the minimum.</p>}
       </div>
     </>
+  );
+}
+
+function Comebacks() {
+  const { data, err } = useFile<Comeback[]>("explorer/comebacks.json");
+  if (err) return <p className="notice" role="alert">{err}</p>;
+  if (!data) return <p className="notice">Loading…</p>;
+  return (
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Biggest comebacks table">
+      <table className="data">
+        <caption>Biggest comebacks: the winner’s lowest chance during the chase, according to the model (completed matches, no rain)</caption>
+        <thead><tr><th scope="col">Match</th><th scope="col">Lowest chance</th><th scope="col">At ball</th><th scope="col">How</th><th scope="col">Date</th></tr></thead>
+        <tbody>
+          {data.map((c) => (
+            <tr key={c.id}>
+              <th scope="row"><a href={`/replay/${c.id}`}>{c.winner} beat {c.loser}</a></th>
+              <td className="num hl-n">{c.low < 0.01 ? "<1" : (c.low * 100).toFixed(1)}%</td>
+              <td>{c.at}</td>
+              <td>{c.chased ? "chased it down" : "defended it"}</td>
+              <td>{formatDate(c.date)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">Probabilities come from a model that did not train on that season. A 3% moment is the model’s estimate, not a measured fact.</p>
+    </div>
   );
 }
 
@@ -168,7 +195,7 @@ function Matchups() {
             <thead><tr><th scope="col">Bowler</th><th scope="col">Balls</th><th scope="col">Runs</th><th scope="col">SR</th><th scope="col">Outs</th><th scope="col">Dot %</th><th scope="col">4s</th><th scope="col">6s</th></tr></thead>
             <tbody>
               {filtered.slice(0, 60).map(([bid, balls, runs, outs, fours, sixes, dots]) => (
-                <tr key={bid}><th scope="row"><a href={`#/player/${bid}`}>{mu.names[bid]}</a></th><td>{balls}</td><td>{runs}</td><td className="num hl-n">{strikeRate(runs, balls).toFixed(0)}</td><td>{outs}</td><td>{ratio(dots, balls)}</td><td>{fours}</td><td>{sixes}</td></tr>
+                <tr key={bid}><th scope="row"><a href={`/player/${bid}`}>{mu.names[bid]}</a></th><td>{balls}</td><td>{runs}</td><td className="num hl-n">{strikeRate(runs, balls).toFixed(0)}</td><td>{outs}</td><td>{ratio(dots, balls)}</td><td>{fours}</td><td>{sixes}</td></tr>
               ))}
             </tbody>
           </table>
@@ -211,6 +238,7 @@ export default function Explorer({ index }: { index: SiteIndex }) {
         {tab === "death" && <Death seasons={seasons} />}
         {tab === "batters" && <Batters seasons={seasons} />}
         {tab === "venues" && <Venues />}
+        {tab === "comebacks" && <Comebacks />}
       </div>
     </div>
   );

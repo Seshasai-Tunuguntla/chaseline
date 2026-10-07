@@ -1,15 +1,17 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { loadJson } from "./lib/data";
 import type { SiteIndex } from "./lib/types";
+import { legacyHashToPath, navigate, parsePath, type Route } from "./lib/route";
 import Replay from "./pages/Replay";
 
 const Explorer = lazy(() => import("./pages/Explorer"));
 const Players = lazy(() => import("./pages/Players"));
 const Model = lazy(() => import("./pages/Model"));
 
-function parseHash(): { page: string; arg?: string } {
-  const [, page = "replay", arg] = window.location.hash.replace(/^#/, "").split("/");
-  return { page: page || "replay", arg };
+function currentRoute(): Route {
+  const legacy = legacyHashToPath(window.location.hash);
+  if (legacy) window.history.replaceState(null, "", legacy); // old /#/replay/ID links keep working
+  return parsePath(window.location.pathname);
 }
 
 function Logo() {
@@ -29,14 +31,25 @@ function Logo() {
 }
 
 export default function App() {
-  const [route, setRoute] = useState(parseHash);
+  const [route, setRoute] = useState(currentRoute);
   const [index, setIndex] = useState<SiteIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const on = () => setRoute(parseHash());
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
+    const on = () => setRoute(currentRoute());
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element).closest("a");
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (a.target || a.origin !== window.location.origin || a.pathname.startsWith("/data/")) return;
+      e.preventDefault();
+      navigate(a.pathname);
+    };
+    window.addEventListener("popstate", on);
+    document.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("popstate", on);
+      document.removeEventListener("click", onClick);
+    };
   }, []);
   useEffect(() => {
     loadJson<SiteIndex>("index.json").then(setIndex, (e: Error) => setError(e.message));
@@ -57,13 +70,13 @@ export default function App() {
     <>
       <a className="skip" href="#main">Skip to content</a>
       <header className="top">
-        <a className="brand" href="#/replay">
+        <a className="brand" href="/replay">
           <Logo />
           <span className="brand-name">CHASELINE</span>
         </a>
         <nav aria-label="Main">
           {nav.map(([key, label]) => (
-            <a key={key} href={`#/${key}`} aria-current={route.page === key ? "page" : undefined}>
+            <a key={key} href={`/${key}`} aria-current={route.page === key ? "page" : undefined}>
               {label}
             </a>
           ))}

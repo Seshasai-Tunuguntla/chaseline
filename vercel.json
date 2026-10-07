@@ -5,7 +5,49 @@
   "outputDirectory": "web/dist",
   "framework": null,
   "headers": [
-    { "source": "/data/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400" }] },
-    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
+    {
+      "source": "/data/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/replay/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/replay",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/explorer",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/model",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/player/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/player",
+      "destination": "/index.html"
+    }
   ]
 }

@@ -102,7 +102,8 @@ export interface ModelMetrics {
   test_season: number;
   train_seasons: [number, number];
   validation_season: number;
-  feature_selection_validation: Record<string, Scores>;
+  candidates: Candidate[];
+  chosen_config: { name: string; features: string; half_life: number | null; era: boolean; recal: string };
   chosen_model: string;
   holdout: Record<string, Scores>;
   holdout_chases: number;
@@ -112,11 +113,14 @@ export interface ModelMetrics {
   phases: { phase: string; n: number; rrr_rule: number; model: number }[];
   calibration_holdout: CalBin[];
   calibration_holdout_rrr_rule: CalBin[];
+  calibration_holdout_default: CalBin[];
+  rolling_origin: RollingRow[];
   calibration_pooled: CalBin[];
   loso: Record<string, Scores>;
   loso_chases: number;
   features: string[];
   mean_pred_holdout: number;
+  mean_pred_holdout_default: number;
   mean_obs_holdout: number;
 }
 
@@ -127,3 +131,30 @@ export interface PlayerFile {
   bowl: [number, number, number, number, number][]; // season, matches, legal balls, runs, wickets
 }
 export type PlayerIndex = [string, string, number, number][]; // id, name, balls faced, balls bowled
+
+export interface Candidate extends Scores {
+  name: string;
+  features: string;
+  half_life: number | null;
+  era: boolean;
+  recal: string;
+}
+export interface RollingRow {
+  season: number;
+  chases: number;
+  model: Scores;
+  default_model: Scores;
+  rrr_rule: Scores;
+  logit: Scores;
+}
+export interface Comeback {
+  id: string;
+  season: number;
+  date: string;
+  winner: string;
+  loser: string;
+  chased: boolean;
+  low: number;
+  at: string;
+  result: string;
+}

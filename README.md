@@ -15,7 +15,7 @@
 - **Players.** Search any player for career batting and bowling by season and the bowlers they have faced most.
   Names in the Explorer tables link to profiles. The replay page also lists each season's most dramatic matches.
 - **Explorer.** Batter v bowler matchups, best death-over (overs 16-20) bowlers, top batters by strike rate with a
-  minimum-balls filter, and venue stats.
+  minimum-balls filter, venue stats, and the biggest comebacks (the winner's lowest chance during the chase).
 - **The model.** How the probabilities are made, how they compare with a required-run-rate baseline, a calibration
   chart, and an honest list of limits.
 
@@ -51,6 +51,9 @@ flowchart LR
 - **Stack:** pandas, DuckDB, scikit-learn; Vite, React, TypeScript, Recharts; Vercel; GitHub Actions.
 - **Small files:** one JSON file per match (about 4 KB), one per batter for matchups, one per player for profiles, one per season for the match
   list. A page loads only what it shows. The chart libraries are code-split.
+- **Clean URLs:** `/replay/<match id>`, `/explorer`, `/player/<id>`, `/model`, served by Vercel rewrites. Old
+  `/#/replay/<id>` links redirect. All exported JSON is rounded to 5 decimals, and a test checks two exports are
+  byte-identical, so weekly refreshes only commit real changes.
 - **Weekly refresh:** [`refresh-data.yml`](.github/workflows/refresh-data.yml) rebuilds everything on Mondays,
   fails if a data-quality check fails, and commits changed files. Vercel then redeploys.
 
@@ -70,9 +73,9 @@ or a higher required rate never helps the chasing side. When the target is reach
 probability is exact (1, 0, or 0.5 for a tie that goes to a Super Over). Rain-affected chases are left out.
 
 **Split.** Train on seasons 2008-2025. Test on 2026, the newest complete season (it has a final). No shuffling across
-seasons. Input choice among three candidate sets used 2025 as validation and never touched the test season.
-Leakage is guarded by tests: features at ball *k* are identical when everything after *k* is deleted, and the scoring
-environment ignores the current day and anything later.
+seasons. Leakage is guarded by tests: features at ball *k* are identical when everything after *k* is deleted, and the
+scoring environment ignores the current day and anything later. Tests also record every model fit and assert that
+choosing the set-up and the hold-out fits never see 2026, and that each rolling-origin fit sees only earlier seasons.
 
 **Results on the 2026 hold-out** (70 chases, 8,081 ball-states; lower is better):
 
@@ -82,17 +85,42 @@ environment ignores the current day and anything later.
 | **Baseline: required-run-rate rule** (logistic on RRR, trained on the same seasons) | 0.1498 | 0.4554 |
 | Logistic regression, 4 basic inputs | 0.1425 | 0.4320 |
 | Boosted trees, 4 basic inputs | 0.1425 | 0.4254 |
-| **Chaseline model** (boosted trees + scoring environment) | **0.1139** | **0.3541** |
+| Earlier version (boosted trees + scoring environment) | 0.1139 | 0.3541 |
+| **Chaseline model (final)** | **0.1144** | **0.3567** |
 
-The model's Brier score is 0.036 better than the baseline (95% interval 0.025 to 0.047, resampling whole matches).
+The final model's Brier score is 0.035 better than the baseline (95% interval 0.025 to 0.046, resampling whole matches).
 
-**Over all seasons** (each season scored by a model that never saw it; 1,185 chases) the picture is more modest and
-more honest: Brier 0.1446 for the model, 0.1454 for plain logistic regression and 0.1605 for the baseline. Most of the
-2026 gain comes from the scoring-environment input noticing that 2026 chases were easier than history suggested.
+### Attempt to fix the 2026 under-prediction
+
+The first version gave chasers 51% on average in 2026 while they won 63% of ball-states. I tried three fixes, with a
+rule: choose **only** on the 2025 validation season, never by looking at 2026.
+
+- **Recency-weighted training** (sample weight halves every 3 seasons).
+- **An Impact Player era flag** (seasons 2023 onwards; known before any match).
+- **Recalibration** (Platt or isotonic), fitted on predictions for the season before the newest training season.
+
+All 24 combinations (with or without each fix, with the basic or scoring-environment inputs) were scored on 2025
+using models trained on 2008-2024. The best was scoring environment + era flag, no weights, no recalibration
+(2025 Brier 0.1239), barely ahead of the earlier version (0.1245). It was chosen, and 2026 was scored once:
+
+**Result: the fixes did not help.** 2026 Brier 0.1144 against 0.1139 before (no meaningful difference), and mean
+predicted 51% vs actual 63% is unchanged. 2025 could not tell the candidates apart, so it could not pick a fix that
+works on 2026. Isotonic recalibration fitted on one season was sometimes much worse (it produces hard 0% and 100%
+steps). The remaining gap is a real shift in how chases went in 2026 that nothing known by the end of 2025 predicted.
+
+### Rolling-origin evaluation (the honest forecasting view)
+
+For each season from 2010, the model is trained **only on earlier seasons** and scored on that season. The model page
+charts Brier score per season against the baseline. The model beat the baseline in 15 of 17 seasons (it lost in
+2010 and 2019). The set-up was chosen using 2025, so only 2026 is a clean test.
+
+**Important:** the "all seasons" numbers (model 0.1446, plain logistic regression 0.1454, baseline 0.1605, over 1,185
+chases) and the replay lines use **leave-one-season-out**: each season is scored by a model trained on all the *other*
+seasons, **including later ones**. That trains on the future, so it is fine for a replay and a calibration picture, but
+it is not a forecasting test. Only the 2026 hold-out and the rolling-origin results train strictly on the past.
 
 **Calibration.** Across all seasons, when the model says about 70% the chasing side wins about 70% (bins sit on the
-diagonal: model 55% / actual 56%, 75% / 73%, 85% / 86%). In 2026 alone it is *under-confident for chasers*: it gave
-them 51% on average, but chasers won 63% of ball-states. The site shows both calibration curves.
+diagonal: model 55% / actual 56%, 75% / 73%, 85% / 86%). In 2026 alone it is *under-confident for chasers*, as above.
 
 ![Calibration and baseline comparison on the model page](docs/screenshots/model.png)
 
@@ -102,10 +130,10 @@ them 51% on average, but chasers won 63% of ball-states. The site shows both cal
   is far less certain than 8,081 rows suggest, and there is only one hold-out season.
 - **It sees the scoreboard, not the cricket.** No batter or bowler quality, pitch, dew, or depth of the batting still
   to come. Impact-player rules make depth matter more than the model knows.
-- **The game drifts.** 2026 is still under-predicted for chasers despite the environment input.
-- **Replay lines are out-of-season, not out-of-time.** Each season's line comes from a model that did not train on
-  that season, but early-season lines were trained partly on later seasons. That is fine for a replay and wrong for
-  judging forecasts, which is why the headline numbers use the strict train-before-test split.
+- **The game drifts.** 2026 is still under-predicted for chasers; the era flag, recency weights and recalibration did not fix it (see above).
+- **Replay lines train on the future.** Each season's line comes from a model that did not see that season but was
+  trained partly on later ones (leave-one-season-out). Fine for a replay, wrong for judging forecasts; use the 2026
+  hold-out and the rolling-origin chart for that.
 - **Excluded:** rain-affected chases (no line shown) and Super Overs (ties show 50%).
 - **Wides and no-balls** each get a state, so the chart has one point per delivery, not per legal ball.
 - **Not betting advice.**

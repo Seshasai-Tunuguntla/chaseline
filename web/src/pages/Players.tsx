@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { navigate } from "../lib/route";
 import { loadJson } from "../lib/data";
 import { fixed } from "../lib/format";
 import { batCareer, bowlCareer } from "../lib/player";
@@ -20,7 +21,7 @@ function Search({ index, current }: { index: PlayerIndex; current?: string }) {
   const go = (v: string) => {
     setQ(v);
     const hit = index.find((r) => r[1].toLowerCase() === v.trim().toLowerCase());
-    if (hit) window.location.hash = `#/player/${hit[0]}`;
+    if (hit) navigate(`/player/${hit[0]}`);
   };
   return (
     <div className="controls panel">
@@ -111,7 +112,7 @@ function Profile({ id }: { id: string }) {
             <thead><tr><th scope="col">Bowler</th><th scope="col">Balls</th><th scope="col">Runs</th><th scope="col">SR</th><th scope="col">Outs</th></tr></thead>
             <tbody>
               {mu.map(([bid, balls, runs, outs]) => (
-                <tr key={bid}><th scope="row"><a href={`#/player/${bid}`}>{state.mu!.names[bid]}</a></th><td>{balls}</td><td>{runs}</td><td className="hl-n">{strikeRate(runs, balls).toFixed(0)}</td><td>{outs}</td></tr>
+                <tr key={bid}><th scope="row"><a href={`/player/${bid}`}>{state.mu!.names[bid]}</a></th><td>{balls}</td><td>{runs}</td><td className="hl-n">{strikeRate(runs, balls).toFixed(0)}</td><td>{outs}</td></tr>
               ))}
             </tbody>
           </table>
@@ -138,7 +139,7 @@ export default function Players({ playerId }: { index: SiteIndex; playerId?: str
           <h1>Players</h1>
           <p className="muted">Search above, or start with the players who have appeared most.</p>
           <ul className="chips">
-            {top.map((r) => <li key={r[0]}><a href={`#/player/${r[0]}`}>{r[1]}</a></li>)}
+            {top.map((r) => <li key={r[0]}><a href={`/player/${r[0]}`}>{r[1]}</a></li>)}
           </ul>
         </section>
       )}

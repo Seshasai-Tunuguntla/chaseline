@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { navigate } from "../lib/route";
 import { loadJson } from "../lib/data";
 import { formatDate, formatOvers, shortDate, signedPct } from "../lib/format";
 import { describeReplay, shapeReplay } from "../lib/replay";
@@ -18,9 +19,7 @@ function useNarrow() {
   return narrow;
 }
 
-const go = (id: string) => {
-  window.location.hash = `#/replay/${id}`;
-};
+const go = (id: string) => navigate(`/replay/${id}`);
 
 export default function Replay({ index, matchId }: { index: SiteIndex; matchId: string | null }) {
   const narrow = useNarrow();
@@ -99,7 +98,7 @@ export default function Replay({ index, matchId }: { index: SiteIndex; matchId: 
           <ul className="chips">
             {mostDramatic(list, 5).map((m) => (
               <li key={m.id}>
-                <a href={`#/replay/${m.id}`} aria-current={m.id === doc.id ? "true" : undefined}>{shortDate(m.date)} · {m.t1} v {m.t2}</a>
+                <a href={`/replay/${m.id}`} aria-current={m.id === doc.id ? "true" : undefined}>{shortDate(m.date)} · {m.t1} v {m.t2}</a>
               </li>
             ))}
           </ul>

@@ -3,16 +3,21 @@ import { loadJson } from "../lib/data";
 import type { CalBin, ModelMetrics, SiteIndex } from "../lib/types";
 
 const Calibration = lazy(() => import("../components/Calibration"));
+const SeasonBrier = lazy(() => import("../components/SeasonBrier"));
 
 const LABEL: Record<string, string> = {
   coin_flip: "Coin flip (always 50%)",
   rrr_rule: "Baseline: required-run-rate rule",
   logit: "Logistic regression, 4 basic inputs",
   gbm_basic: "Boosted trees, 4 basic inputs",
-  gbm_env: "Boosted trees + scoring environment (the model)",
+  gbm_env: "Earlier version: boosted trees + scoring environment",
   gbm_full: "Boosted trees + environment + recent form",
+  model: "Chaseline model (final, chosen on 2025)",
 };
-const ORDER = ["coin_flip", "rrr_rule", "logit", "gbm_basic", "gbm_env", "gbm_full"];
+const ORDER = ["coin_flip", "rrr_rule", "logit", "gbm_basic", "gbm_full", "gbm_env", "model"];
+const describe = (c: { features: string; half_life: number | null; era: boolean; recal: string }) =>
+  [c.features === "env" ? "scoring environment" : "basic inputs", c.half_life ? `recency weights (half-life ${c.half_life} seasons)` : "equal weights",
+    c.era ? "Impact Player era flag" : "no era flag", c.recal === "none" ? "no recalibration" : `${c.recal} recalibration`].join(", ");
 const f4 = (n: number) => n.toFixed(4);
 
 function CalTable({ bins }: { bins: CalBin[] }) {
@@ -54,7 +59,7 @@ export default function Model({ index }: { index: SiteIndex }) {
         <ul>
           <li><strong>Training:</strong> seasons {m.train_seasons[0]}–{m.train_seasons[1]}. <strong>Test:</strong> {m.test_season}, the latest completed season ({m.holdout_chases} chases, {m.holdout_states.toLocaleString()} ball-states). Seasons are never shuffled together.</li>
           <li><strong>Model:</strong> gradient-boosted trees (small, shallow, with monotonic constraints: more runs needed never helps the chasing side). Inputs: {m.features.join(", ")}.</li>
-          <li><strong>Choosing inputs:</strong> picked on {m.validation_season}, the last training season, never on the test season.</li>
+          <li><strong>Choosing the set-up:</strong> {m.candidates.length} candidate set-ups were scored on {m.validation_season}, the last training season, and never on the test season. The winner: {describe(m.chosen_config)}.</li>
           <li><strong>Ends of the game:</strong> once the target is reached, or the innings runs out of balls or wickets, the probability is exact (100%, 0%, or 50% for a tie that goes to a Super Over). Rain-affected chases are excluded.</li>
         </ul>
       </section>
@@ -101,6 +106,66 @@ export default function Model({ index }: { index: SiteIndex }) {
       </section>
 
       <section className="panel">
+        <h2>Trying to fix the {m.test_season} under-prediction</h2>
+        <p>
+          An earlier version gave chasers {Math.round(m.mean_pred_holdout_default * 100)}% on average in {m.test_season}, but they won {Math.round(m.mean_obs_holdout * 100)}%.
+          I tried three fixes: recency-weighted training, a flag for the Impact Player era ({"2023 onwards"}), and recalibration
+          (Platt or isotonic, fitted on the season before the newest training season). All {m.candidates.length} combinations were
+          scored on {m.validation_season} only; {m.test_season} was not consulted to choose between them.
+        </p>
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Candidate set-ups">
+          <table className="data">
+            <caption>Best 8 of {m.candidates.length} candidates on {m.validation_season} (lower is better)</caption>
+            <thead><tr><th scope="col">Set-up</th><th scope="col">Brier</th><th scope="col">Log loss</th></tr></thead>
+            <tbody>
+              {m.candidates.slice(0, 8).map((c) => (
+                <tr key={c.name} className={c.name === m.chosen_config.name ? "hl" : undefined}>
+                  <th scope="row">{describe(c)}</th><td>{f4(c.brier)}</td><td>{f4(c.log_loss)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>Result, reported once:</strong> on {m.test_season} the chosen set-up scores Brier {f4(m.holdout.model.brier)} against {f4(m.holdout.gbm_env.brier)} for the
+          earlier version, and it still gives chasers {Math.round(m.mean_pred_holdout * 100)}% on average against an actual {Math.round(m.mean_obs_holdout * 100)}%.
+          {Math.abs(m.holdout.model.brier - m.holdout.gbm_env.brier) < 0.002
+            ? " The fixes did not help: on the validation season they were no better than the plain model, so the validation season could not pick a clear winner and the under-prediction remains."
+            : m.holdout.model.brier < m.holdout.gbm_env.brier ? " The fixes helped, though not fully." : " The fixes did not help on the test season."}
+          {" "}Some candidates were much worse: isotonic recalibration fitted on a single season produces hard 0% and 100% steps and can fail badly.
+        </p>
+      </section>
+
+      <section className="panel">
+        <h2>Season by season, trained only on the past</h2>
+        <p>
+          For each season, the model below was trained on <em>earlier</em> seasons only and then scored on that season (rolling origin).
+          This is the honest way to read the model as a forecaster. The set-up itself was chosen using {m.validation_season}, so only {m.test_season} is a clean test.
+        </p>
+        <Suspense fallback={<div className="chart-skel">Loading chart…</div>}>
+          <SeasonBrier rows={m.rolling_origin} />
+        </Suspense>
+        <p>
+          The model beat the baseline in {m.rolling_origin.filter((r) => r.model.brier < r.rrr_rule.brier).length} of {m.rolling_origin.length} seasons.
+          Early seasons have little training data and are noisy.
+        </p>
+        <details>
+          <summary>Show the numbers</summary>
+          <div className="table-wrap" tabIndex={0} role="region" aria-label="Rolling origin table">
+            <table className="data">
+              <caption className="sr">Brier score by season, trained on earlier seasons only</caption>
+              <thead><tr><th scope="col">Season</th><th scope="col">Chases</th><th scope="col">Model</th><th scope="col">Baseline</th><th scope="col">Logistic</th></tr></thead>
+              <tbody>
+                {m.rolling_origin.map((r) => (
+                  <tr key={r.season}><th scope="row">{r.season}</th><td>{r.chases}</td><td>{f4(r.model.brier)}</td><td>{f4(r.rrr_rule.brier)}</td><td>{f4(r.logit.brier)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section className="panel">
         <h2>Calibration: when it says 70%, do teams win about 70%?</h2>
         <Suspense fallback={<div className="chart-skel">Loading chart…</div>}>
           <Calibration pooled={m.calibration_pooled} holdout={m.calibration_holdout} season={m.test_season} />
@@ -139,7 +204,7 @@ export default function Model({ index }: { index: SiteIndex }) {
           <li><strong>Few independent outcomes.</strong> A season has about 70 chases. Hundreds of ball-states per chase share one result, so the test is far less certain than its row count suggests.</li>
           <li><strong>It sees the scoreboard, not the cricket.</strong> It does not know who is batting or bowling, the pitch, dew, or the batting still to come (“impact player” depth changes this). A set Kohli at 12 an over looks the same as a tail-ender.</li>
           <li><strong>The game changes.</strong> Higher scoring in recent seasons shifted the odds. The scoring-environment input helps, but {m.test_season} is still under-predicted for chasers (see calibration).</li>
-          <li><strong>Replay lines are out-of-season, not out-of-time.</strong> Each season’s line comes from a model that never saw that season, but for earlier seasons it was trained partly on later ones. Fine for a replay, not a forecasting test.</li>
+          <li><strong>Replay lines and the “all seasons” scores train on the future.</strong> They use leave-one-season-out: each season is scored by a model trained on all the <em>other</em> seasons, including later ones. That is fine for a replay but is not a forecasting test. Only the {m.test_season} hold-out and the rolling-origin chart train strictly on the past.</li>
           <li><strong>Rain and Super Overs are left out.</strong> Shortened chases have no line; a tie is shown as 50%.</li>
           <li><strong>It is not betting advice.</strong> Probabilities are estimates from a small model on public data.</li>
         </ul>
