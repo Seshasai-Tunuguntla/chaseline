@@ -16,9 +16,24 @@ SWING_MIN = 0.05
 OVER_SWING_MIN = 0.10
 
 
+FLOAT_DECIMALS = 5
+
+
+def round_floats(obj, nd: int = FLOAT_DECIMALS):
+    """Round every float so refreshes do not commit last-digit noise; NaN/inf become null (invalid in JSON)."""
+    if isinstance(obj, (float, np.floating)):
+        f = float(obj)
+        return round(f, nd) if np.isfinite(f) else None
+    if isinstance(obj, dict):
+        return {k: round_floats(v, nd) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [round_floats(v, nd) for v in obj]
+    return obj
+
+
 def _dump(path: Path, obj) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, separators=(",", ":"), ensure_ascii=False))
+    path.write_text(json.dumps(round_floats(obj), separators=(",", ":"), ensure_ascii=False, allow_nan=False))
 
 
 def surname(name: str) -> str:

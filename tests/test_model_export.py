@@ -108,3 +108,31 @@ def test_pipeline_output_is_reproducible(tmp_path):
         outs.append({str(p.relative_to(out)): p.read_bytes() for p in out.rglob("*.json")})
     assert outs[0].keys() == outs[1].keys()
     assert all(outs[0][k] == outs[1][k] for k in outs[0])
+
+
+def test_round_floats_trims_noise_and_nulls_nan():
+    out = export.round_floats({"a": 0.123456789, "b": [np.float64(1.0000001), 3], "c": {"d": float("nan")}, "e": "x"})
+    assert out == {"a": 0.12346, "b": [1.0, 3], "c": {"d": None}, "e": "x"}
+    assert json.dumps(export.round_floats({"p": 0.1 + 0.2})) == '{"p": 0.3}'
+
+
+@pytest.fixture(scope="module")
+def pipeline_objects(sample):
+
+    from chaseline import db, features
+
+    m, d = sample
+    con = db.build_db(m.to_dict("records"), d.to_dict("records"), ":memory:")
+    states, metrics = model.run_model(features.build_states(m, d), m, smoke=True)
+    return con, m, d, states, metrics
+
+
+def test_export_twice_is_byte_identical(pipeline_objects, tmp_path):
+    con, m, d, states, metrics = pipeline_objects
+    src = {"name": "Cricsheet", "license": "ODC-By 1.0"}
+    for name in ("a", "b"):
+        export.export_all(tmp_path / name, con, m, d, states, metrics, src)
+    files_a = {p.relative_to(tmp_path / "a"): p.read_bytes() for p in (tmp_path / "a").rglob("*.json")}
+    files_b = {p.relative_to(tmp_path / "b"): p.read_bytes() for p in (tmp_path / "b").rglob("*.json")}
+    assert files_a.keys() == files_b.keys() and len(files_a) > 20
+    assert all(files_a[k] == files_b[k] for k in files_a)
