@@ -108,3 +108,8 @@ def test_build_states_labels_follow_winner(sample, sample_states):
         assert g["label"].nunique() == 1  # one outcome per chase
     won = st.dropna(subset=["label"]).groupby("match_id")["label"].first()
     assert won.isin([0.0, 1.0]).all() and 0 < won.mean() < 1
+
+
+def test_era_flag_depends_only_on_the_season(sample_states):
+    from chaseline.features import ERA_START
+    assert (sample_states["impact_era"] == (sample_states["season"] >= ERA_START).astype(int)).all()

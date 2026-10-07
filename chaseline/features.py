@@ -8,6 +8,7 @@ FEATURES_BASIC = ["runs_needed", "balls_left", "wickets_left", "rrr"]
 FEATURES_ENV = FEATURES_BASIC + ["env_rpo", "rrr_gap"]
 FEATURES_FULL = FEATURES_ENV + ["crr", "last12_runs", "last12_wkts"]
 WINDOW = 12
+ERA_START = 2023  # Impact Player rule introduced; known before any match in the season
 ENV_MATCHES = 60
 ENV_MIN = 10
 
@@ -94,6 +95,7 @@ def build_states(matches: pd.DataFrame, deliveries: pd.DataFrame) -> pd.DataFram
             label = np.nan  # tie (super over) or no result: no regulation-time winner
         st.insert(0, "match_id", mid)
         st["season"] = int(m["season"])
+        st["impact_era"] = int(int(m["season"]) >= ERA_START)
         st["label"] = label
         # rain-affected chases (shortened or re-set targets) are outside what the model describes
         st["modelled"] = bool(m["target_overs"] == 20 and pd.isna(m["method"]))

@@ -12,18 +12,27 @@ def test_split_is_chronological_and_never_trains_on_test_season(sample, sample_s
     seen = []
     real_fit = model.fit
 
-    def spy(kind, train):
-        seen.append((kind, set(train["season"])))
-        return real_fit(kind, train)
+    def spy(kind, train, purpose=""):
+        seen.append((purpose, set(train["season"])))
+        return real_fit(kind, train, purpose)
 
     monkeypatch.setattr(model, "fit", spy)
     _, metrics = model.run_model(sample_states, m, smoke=True)
     test_season = metrics["test_season"]
     assert test_season == m["season"].max()
     assert metrics["train_seasons"][1] < test_season
-    # validation-selection fits (3) and hold-out fits (5) come first and may only see older seasons
-    assert len(seen) > 8
-    assert all(max(seasons) < test_season for _, seasons in seen[:8])
+    purposes = {p for p, _ in seen}
+    assert {"selection", "holdout", "rolling", "loso"} <= purposes
+    # choosing the model and the hold-out fits may only see seasons before the test season
+    assert all(max(s) < test_season for p, s in seen if p in ("selection", "holdout"))
+    # selection never even sees the validation season in training
+    assert all(max(s) < metrics["validation_season"] for p, s in seen if p == "selection")
+    # rolling origin: every fit trains strictly before the season it scores
+    scored = [r["season"] for r in metrics["rolling_origin"]]
+    roll = [s for p, s in seen if p == "rolling"]
+    assert len(roll) == 4 * len(scored)
+    for i, season in enumerate(scored):
+        assert all(max(s) < season for s in roll[4 * i: 4 * i + 4])
 
 
 def test_wp_is_probability_and_terminal_states_exact(sample, sample_states):
@@ -34,7 +43,7 @@ def test_wp_is_probability_and_terminal_states_exact(sample, sample_states):
     assert mod["wp"].between(0, 1).all()
     assert (mod.loc[mod["terminal"] & (mod["terminal_wp"] == 1.0), "wp"] == 1.0).all()
     assert not out.loc[~out["modelled"], "wp"].notna().any()
-    assert {"rrr_rule", "logit", "gbm_env", "coin_flip"} <= set(metrics["holdout"])
+    assert {"rrr_rule", "logit", "model", "coin_flip"} <= set(metrics["holdout"])
 
 
 def test_calibration_and_scores():
@@ -136,3 +145,20 @@ def test_export_twice_is_byte_identical(pipeline_objects, tmp_path):
     files_b = {p.relative_to(tmp_path / "b"): p.read_bytes() for p in (tmp_path / "b").rglob("*.json")}
     assert files_a.keys() == files_b.keys() and len(files_a) > 20
     assert all(files_a[k] == files_b[k] for k in files_a)
+
+
+def test_lowest_win_prob_from_the_winners_side():
+    wp = np.array([0.5, 0.2, 0.05, 0.4, 1.0])
+    assert export.lowest_win_prob(wp, chase_won=True) == (0.05, 2)
+    wp2 = np.array([0.5, 0.8, 0.97, 0.6, 0.0])  # chasers led 97% but lost: defenders came back from 3%
+    low, at = export.lowest_win_prob(wp2, chase_won=False)
+    assert low == pytest.approx(0.03) and at == 2
+
+
+def test_comebacks_file_is_sorted_and_valid(pipeline_objects, tmp_path):
+    con, m, d, states, metrics = pipeline_objects
+    export.export_all(tmp_path, con, m, d, states, metrics, {})
+    cb = json.loads((tmp_path / "explorer" / "comebacks.json").read_text())
+    assert cb and [c["low"] for c in cb] == sorted(c["low"] for c in cb)
+    assert all(0 <= c["low"] <= 0.5 and c["winner"] != c["loser"] for c in cb)
+    assert (tmp_path / "matches" / f"{cb[0]['id']}.json").exists()

@@ -62,6 +62,15 @@ def _pct(x: float) -> str:
     return f"{x * 100:+.0f}%".replace("-", "−")
 
 
+def lowest_win_prob(wp: np.ndarray, chase_won: bool) -> tuple[float, int]:
+    """The winner's lowest chance during the chase, and the step where it happened."""
+    if chase_won:
+        i = int(np.argmin(wp))
+        return float(wp[i]), i
+    i = int(np.argmax(wp))
+    return float(1.0 - wp[i]), i
+
+
 def find_swings(chase: pd.DataFrame, balls: pd.DataFrame) -> list[dict]:
     """Biggest single-delivery swings plus biggest overs, from the chasing team's point of view."""
     wp = chase["wp"].to_numpy()
@@ -106,6 +115,7 @@ def export_matches(out: Path, matches: pd.DataFrame, deliveries: pd.DataFrame, s
     dd = {k: g for k, g in deliveries[~deliveries["is_super_over"]].groupby(["match_id", "innings"])}
     st = {k: g.reset_index(drop=True) for k, g in states.groupby("match_id")}
     drama: dict[str, float] = {}
+    comebacks: list[dict] = []
     season_rows: dict[int, list] = {}
     for _, m in matches.sort_values(["date", "match_id"]).iterrows():
         mid = m["match_id"]
@@ -130,6 +140,19 @@ def export_matches(out: Path, matches: pd.DataFrame, deliveries: pd.DataFrame, s
                 chase["wp"] = [int(round(float(x) * 1000)) for x in wp]
                 chase["swings"] = find_swings(s, second.reset_index(drop=True))
                 drama[mid] = float(np.abs(np.diff(wp)).sum())
+                if m["result_type"] in ("runs", "wickets") and isinstance(m["winner"], str):
+                    chase_won = m["winner"] == chase["team"]
+                    low, at = lowest_win_prob(wp, chase_won)
+                    other = m["team1"] if m["winner"] == m["team2"] else m["team2"]
+                    if low < 0.5:  # only winners who were genuinely behind at some point
+                        comebacks.append({
+                            "id": mid, "season": int(m["season"]), "date": m["date"],
+                            "winner": clean.TEAM_CODES.get(m["winner"], m["winner"]),
+                            "loser": clean.TEAM_CODES.get(other, other), "chased": chase_won,
+                            "low": round(low, 4),
+                            "at": ball_label(int(s["legal_balls"].iloc[at])) if at else "start",
+                            "result": result_text(m),
+                        })
         doc = {
             "id": mid, "season": int(m["season"]), "date": m["date"], "venue": m["venue"], "city": m["city"],
             "stage": m["stage"], "team1": m["team1"], "team2": m["team2"], "winner": m["winner"],
@@ -145,7 +168,8 @@ def export_matches(out: Path, matches: pd.DataFrame, deliveries: pd.DataFrame, s
         })
     for season, rows in season_rows.items():
         _dump(out / "seasons" / f"{season}.json", rows)
-    return {"season_rows": season_rows, "drama": drama}
+    comebacks.sort(key=lambda c: (c["low"], c["id"]))
+    return {"season_rows": season_rows, "drama": drama, "comebacks": comebacks[:30]}
 
 
 def export_explorer(out: Path, con: duckdb.DuckDBPyConnection) -> None:
@@ -240,6 +264,7 @@ def export_all(out: Path, con: duckdb.DuckDBPyConnection, matches: pd.DataFrame,
         shutil.rmtree(out / sub, ignore_errors=True)
     info = export_matches(out, matches, deliveries, states)
     export_explorer(out, con)
+    _dump(out / "explorer" / "comebacks.json", info["comebacks"])
     comp_test = metrics["test_season"]
     cand = {k: v for k, v in info["drama"].items()
             if matches.set_index("match_id").loc[k, "season"] == comp_test}
