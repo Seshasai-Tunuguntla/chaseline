@@ -144,8 +144,8 @@ export default function Replay({ index, matchId }: { index: SiteIndex; matchId: 
         ) : (
           <p className="notice">
             {chase
-              ? "This chase was shortened or re-targeted (rain, D/L), so the model does not describe it and no probability line is drawn."
-              : "This match had no second innings."}
+              ? `No win-probability line for this match: the chase was shortened or re-targeted (rain, D/L), which the model does not cover. ${chase.team} reached ${chase.runs[lastStep]}/${chase.wickets[lastStep]} in ${formatOvers(chase.balls[lastStep])} overs against a revised target of ${chase.target}.`
+              : "No second innings was played in this match (abandoned), so there is no chase to chart."}
           </p>
         )}
       </section>
