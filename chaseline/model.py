@@ -1,5 +1,5 @@
 """Win-probability model, baselines and evaluation. Train on older seasons, test on the newest complete one."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from .config import SEED
-from .features import FEATURES_BASIC, FEATURES_ENV, FEATURES_FULL
+from .features import ERA_START, FEATURES_BASIC, FEATURES_ENV, FEATURES_FULL, FEATURES_MOMENTUM
 
 # more runs needed = worse for the chase; more balls/wickets left = better. Enforced for the basic features.
 MONOTONE = {"runs_needed": -1, "balls_left": 1, "wickets_left": 1, "rrr": -1, "rrr_gap": -1}
@@ -46,17 +46,18 @@ class Config:
     half_life: float | None = None  # seasons; recency weight 0.5 ** (age / half_life)
     era: bool = False  # add the Impact Player era flag
     recal: str = "none"  # 'none', 'platt' or 'isotonic', fitted on the season before the newest training one
+    momentum: bool = False  # dot balls and boundaries in the last 12 balls
 
     @property
     def name(self) -> str:
         parts = [self.features, f"hl{self.half_life:g}" if self.half_life else "unweighted",
-                 "era" if self.era else "no-era", self.recal]
+                 "era" if self.era else "no-era", self.recal] + (["momentum"] if self.momentum else [])
         return "+".join(parts)
 
     @property
     def feats(self) -> list[str]:
         base = FEATURES_BASIC if self.features == "basic" else FEATURES_ENV
-        return base + (["impact_era"] if self.era else [])
+        return base + (["impact_era"] if self.era else []) + (FEATURES_MOMENTUM if self.momentum else [])
 
 
 def candidate_configs() -> list[Config]:
@@ -185,7 +186,7 @@ def complete_seasons(matches: pd.DataFrame, smoke: bool) -> list[int]:
     return sorted(matches.loc[matches["stage"] == "Final", "season"].unique().tolist())
 
 
-def run_model(states: pd.DataFrame, matches: pd.DataFrame, smoke: bool = False) -> tuple[pd.DataFrame, dict]:
+def run_model(states: pd.DataFrame, matches: pd.DataFrame, smoke: bool = False, env_now: float | None = None) -> tuple[pd.DataFrame, dict]:
     """Returns states with a `wp` column (out-of-sample probability) and a metrics dict."""
     comp = complete_seasons(matches, smoke)
     if len(comp) < 2:
@@ -208,8 +209,15 @@ def run_model(states: pd.DataFrame, matches: pd.DataFrame, smoke: bool = False) 
                                "era": cfg.era, "recal": cfg.recal, **sc})
         best_row = min(candidates, key=lambda c: c["brier"])
         best_cfg = Config(best_row["features"], best_row["half_life"], best_row["era"], best_row["recal"])
+        # momentum features are kept only if they beat the best set-up above on the same validation season
+        with_m = replace(best_cfg, momentum=True)
+        sc_m = scores(val["label"].to_numpy(), fit(with_m, sub_train, "selection").predict(val))
+        momentum_test = {"without": best_row["brier"], "with": sc_m["brier"], "adopted": sc_m["brier"] < best_row["brier"]}
+        if momentum_test["adopted"]:
+            best_cfg = with_m
     else:
         best_cfg = Config()
+        momentum_test = None
     default_cfg = Config()  # the previous production model: env features, no weights, no era flag, no recal
 
     # 2. hold-out: everything below is fitted on train seasons only
@@ -278,7 +286,8 @@ def run_model(states: pd.DataFrame, matches: pd.DataFrame, smoke: bool = False) 
         "validation_season": int(val_season),
         "candidates": sorted(candidates, key=lambda c: c["brier"]),
         "chosen_config": {"name": best_cfg.name, "features": best_cfg.features, "half_life": best_cfg.half_life,
-                          "era": best_cfg.era, "recal": best_cfg.recal},
+                          "era": best_cfg.era, "recal": best_cfg.recal, "momentum": best_cfg.momentum},
+        "momentum_test": momentum_test,
         "chosen_model": "model",
         "holdout": holdout,
         "holdout_chases": int(test["match_id"].nunique()),
@@ -298,4 +307,32 @@ def run_model(states: pd.DataFrame, matches: pd.DataFrame, smoke: bool = False) 
         "mean_pred_holdout_default": float(preds["gbm_env"].mean()),
         "mean_obs_holdout": float(y.mean()),
     }
+    metrics["_whatif"] = whatif_grid(full_model, env_now if env_now is not None else _last_env(states), comp)
     return out, metrics
+
+
+def _last_env(states: pd.DataFrame) -> float:
+    env = states["env_rpo"].dropna()
+    return float(env.iloc[-1]) if len(env) else 8.5
+
+
+# axes of the what-if table: fine where the game is decided, coarser elsewhere
+WHATIF_RUNS = list(range(1, 41)) + list(range(42, 101, 2)) + list(range(105, 251, 5))
+WHATIF_BALLS = list(range(1, 13)) + list(range(15, 121, 3))
+WHATIF_WICKETS = list(range(1, 11))
+
+
+def whatif_grid(fitted: Fitted, env: float, comp: list[int]) -> dict:
+    """Win probability (per-mille) for every runs/balls/wickets combination at the current scoring environment."""
+    w, b, r = np.meshgrid(WHATIF_WICKETS, WHATIF_BALLS, WHATIF_RUNS, indexing="ij")
+    df = pd.DataFrame({"runs_needed": r.ravel(), "balls_left": b.ravel(), "wickets_left": w.ravel()})
+    df["rrr"] = df["runs_needed"] * 6 / df["balls_left"]
+    df["env_rpo"] = env
+    df["rrr_gap"] = df["rrr"] - env
+    df["impact_era"] = 1  # the grid describes today's game
+    for f in fitted.feats:
+        if f not in df:  # momentum / form inputs are not part of a what-if question; use typical values
+            df[f] = 0.0
+    p = np.clip(np.round(fitted.predict(df) * 1000), 0, 1000).astype(int)
+    return {"env": round(env, 3), "era_start": ERA_START, "through_season": int(comp[-1]),
+            "runs": WHATIF_RUNS, "balls": WHATIF_BALLS, "wickets": WHATIF_WICKETS, "p": p.tolist()}

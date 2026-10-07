@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> None:
     states = features.build_states(m_df, d_df)
 
     print("[4/5] model")
-    states, metrics = model.run_model(states, m_df, smoke=args.smoke)
+    states, metrics = model.run_model(states, m_df, smoke=args.smoke, env_now=features.current_environment(m_df, d_df))
     con.register("states_df", states)
     con.execute("CREATE OR REPLACE TABLE win_prob AS SELECT * FROM states_df")
     pq = Path(args.db).with_name("win_prob.parquet")

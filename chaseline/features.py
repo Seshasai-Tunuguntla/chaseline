@@ -7,6 +7,7 @@ from .config import MAX_BALLS
 FEATURES_BASIC = ["runs_needed", "balls_left", "wickets_left", "rrr"]
 FEATURES_ENV = FEATURES_BASIC + ["env_rpo", "rrr_gap"]
 FEATURES_FULL = FEATURES_ENV + ["crr", "last12_runs", "last12_wkts"]
+FEATURES_MOMENTUM = ["dots12", "bounds12"]  # dot balls / boundaries among the last 12 legal balls
 WINDOW = 12
 ERA_START = 2023  # Impact Player rule introduced; known before any match in the season
 ENV_MATCHES = 60
@@ -34,6 +35,14 @@ def scoring_environment(matches: pd.DataFrame, deliveries: pd.DataFrame) -> pd.S
     return pd.Series(env, index=m.index, name="env_rpo")
 
 
+def current_environment(matches: pd.DataFrame, deliveries: pd.DataFrame) -> float:
+    """Scoring environment for a hypothetical next match: mean runs per over of the last 60 matches."""
+    reg = deliveries[~deliveries["is_super_over"]]
+    g = reg.groupby("match_id").agg(runs=("total_runs", "sum"), balls=("legal", "sum"))
+    rpo = (g["runs"] * 6 / g["balls"]).reindex(matches.sort_values(["date", "match_id"])["match_id"]).dropna()
+    return float(rpo.iloc[-ENV_MATCHES:].mean())
+
+
 def chase_states(inn: pd.DataFrame, target: int, env_rpo: float = np.nan) -> pd.DataFrame:
     """States of one second innings: step 0 is before the first delivery, step k is after delivery k.
 
@@ -45,6 +54,8 @@ def chase_states(inn: pd.DataFrame, target: int, env_rpo: float = np.nan) -> pd.
     wkts = np.concatenate([[0], inn["is_wicket"].astype(int).cumsum().to_numpy()])
     legal = np.concatenate([[0], inn["legal"].astype(int).cumsum().to_numpy()])
     seq = np.concatenate([[0], inn["seq"].to_numpy()])
+    dots = np.concatenate([[0], ((inn["total_runs"] == 0) & inn["legal"]).astype(int).cumsum().to_numpy()])
+    bounds = np.concatenate([[0], (inn["batter_runs"] >= 4).astype(int).cumsum().to_numpy()])
     # index of the last state at least WINDOW legal balls back (searchsorted on non-decreasing counts)
     back = np.searchsorted(legal, np.maximum(legal - WINDOW, 0), side="right") - 1
     balls_left = MAX_BALLS - legal
@@ -68,6 +79,8 @@ def chase_states(inn: pd.DataFrame, target: int, env_rpo: float = np.nan) -> pd.
         "crr": np.where(legal > 0, runs * 6 / np.maximum(legal, 1), 0.0),
         "last12_runs": runs - runs[back],
         "last12_wkts": wkts - wkts[back],
+        "dots12": dots - dots[back],
+        "bounds12": bounds - bounds[back],
         "terminal": terminal,
         "env_rpo": env_rpo,
     })

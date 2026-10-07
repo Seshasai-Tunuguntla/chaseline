@@ -263,6 +263,7 @@ def export_all(out: Path, con: duckdb.DuckDBPyConnection, matches: pd.DataFrame,
     for sub in ("matches", "seasons"):
         shutil.rmtree(out / sub, ignore_errors=True)
     info = export_matches(out, matches, deliveries, states)
+    grid = metrics.get("_whatif")
     export_explorer(out, con)
     _dump(out / "explorer" / "comebacks.json", info["comebacks"])
     comp_test = metrics["test_season"]
@@ -275,7 +276,10 @@ def export_all(out: Path, con: duckdb.DuckDBPyConnection, matches: pd.DataFrame,
         "source": source_info, "seasons": seasons, "featured": featured,
         "teams": clean.TEAM_CODES, "test_season": comp_test,
     })
+    metrics = {k: v for k, v in metrics.items() if not k.startswith("_")}
     _dump(out / "model.json", metrics)
+    if grid is not None:
+        _dump(out / "whatif.json", grid)
 
 
 def slug(s: str) -> str:

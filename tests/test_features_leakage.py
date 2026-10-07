@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from chaseline import parse
-from chaseline.features import FEATURES_FULL, chase_states, scoring_environment
+from chaseline.features import FEATURES_FULL, FEATURES_MOMENTUM, chase_states, current_environment, scoring_environment
 
 from .conftest import ball, raw_match
 
@@ -53,7 +53,7 @@ def test_features_do_not_depend_on_future_deliveries(sample, cut):
         full = chase_states(inn, target=150, env_rpo=8.0)
         k = min(cut, len(inn))
         trunc = chase_states(inn.sort_values("seq").iloc[:k], target=150, env_rpo=8.0)
-        cols = [c for c in FEATURES_FULL if c in full.columns] + ["runs", "wickets", "legal_balls"]
+        cols = [c for c in FEATURES_FULL + FEATURES_MOMENTUM if c in full.columns] + ["runs", "wickets", "legal_balls"]
         pd.testing.assert_frame_equal(full.iloc[: k + 1][cols].reset_index(drop=True), trunc[cols].reset_index(drop=True))
 
 
@@ -113,3 +113,27 @@ def test_build_states_labels_follow_winner(sample, sample_states):
 def test_era_flag_depends_only_on_the_season(sample_states):
     from chaseline.features import ERA_START
     assert (sample_states["impact_era"] == (sample_states["season"] >= ERA_START).astype(int)).all()
+
+
+def test_momentum_counts_dots_and_boundaries_in_last_12_balls():
+    over1 = [ball(runs=4), ball(runs=0), ball(runs=6), ball(runs=0), ball(runs=0), ball(runs=1)]
+    over2 = [ball(runs=0)] * 6
+    over3 = [ball(runs=1)] * 6
+    s = chase_states(innings_df([over1, over2, over3]), target=200)
+    assert (s.iloc[6]["dots12"], s.iloc[6]["bounds12"]) == (3, 2)
+    assert (s.iloc[12]["dots12"], s.iloc[12]["bounds12"]) == (9, 2)
+    assert (s.iloc[18]["dots12"], s.iloc[18]["bounds12"]) == (6, 0)  # over 1 has left the window
+    wide = chase_states(innings_df([[ball(extras={"wides": 1})]]), target=50)
+    assert wide.iloc[1]["dots12"] == 0  # a wide is not a dot ball
+
+
+def test_current_environment_uses_only_the_last_60_matches():
+    ms, ds = [], []
+    for i in range(70):
+        runs = 3 if i < 8 else 1  # the first 8 matches score faster
+        over = [[ball(runs=runs)] * 6] * 2
+        m, d = parse.parse_match(raw_match(over, over, dates=(f"2019-{1 + i // 28:02d}-{1 + i % 28:02d}",)), f"{1000 + i}")
+        ms.append(m)
+        ds.extend(d)
+    m, d = pd.DataFrame(ms), pd.DataFrame(ds)
+    assert current_environment(m, d) == pytest.approx(6.0)  # 1 run a ball = 6 an over; the early fast matches are out

@@ -162,3 +162,24 @@ def test_comebacks_file_is_sorted_and_valid(pipeline_objects, tmp_path):
     assert cb and [c["low"] for c in cb] == sorted(c["low"] for c in cb)
     assert all(0 <= c["low"] <= 0.5 and c["winner"] != c["loser"] for c in cb)
     assert (tmp_path / "matches" / f"{cb[0]['id']}.json").exists()
+
+
+def test_whatif_grid_is_complete_bounded_and_monotone(pipeline_objects):
+    g = pipeline_objects[4]["_whatif"]
+    nw, nb, nr = len(g["wickets"]), len(g["balls"]), len(g["runs"])
+    assert len(g["p"]) == nw * nb * nr and min(g["p"]) >= 0 and max(g["p"]) <= 1000
+    cube = np.array(g["p"]).reshape(nw, nb, nr)
+    assert (np.diff(cube, axis=2) <= 0).all(), "more runs needed must never raise the chasing side's chances"
+    assert (np.diff(cube, axis=1) >= 0).all(), "more balls left must never lower them"
+    assert (np.diff(cube, axis=0) >= 0).all(), "more wickets in hand must never lower them"
+    assert g["runs"] == sorted(set(g["runs"])) and g["balls"][0] == 1 and g["wickets"] == list(range(1, 11))
+
+
+def test_whatif_export_is_written_and_kept_out_of_model_json(pipeline_objects, tmp_path):
+    con, m, d, states, metrics = pipeline_objects
+    export.export_all(tmp_path, con, m, d, states, metrics, {})
+    w = json.loads((tmp_path / "whatif.json").read_text())
+    assert {"env", "runs", "balls", "wickets", "p", "through_season"} <= set(w)
+    assert all(isinstance(x, int) for x in w["p"][:50])
+    assert "_whatif" not in json.loads((tmp_path / "model.json").read_text())
+    assert (tmp_path / "whatif.json").stat().st_size < 400_000
