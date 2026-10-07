@@ -12,7 +12,7 @@
 
 - **Match replay.** Pick a season and a match. See the chasing side's win probability after every ball, with the
   biggest swings (wickets, boundaries, big overs) marked and listed in text.
-- **Players.** Search any player for career batting and bowling by season and the bowlers they have faced most.
+- **Players.** Search any player with an accessible autocomplete (keyboard and screen-reader friendly) for career batting and bowling by season and the bowlers they have faced most.
   Names in the Explorer tables link to profiles. The replay page also lists each season's most dramatic matches.
 - **What if?** Set runs needed, balls left and wickets in hand and read off the chasing side's win probability, plus
   how one more wicket, six or dot ball would move it. Values come from a precomputed 48,000-cell table
@@ -195,6 +195,10 @@ chaseline/   parse, clean, checks, features, model, export, run (python -m chase
 tests/       pytest: parsing, cleaning, checks, features, leakage, model split, export
 web/         Vite + React + TypeScript app, Vitest tests; web/public/data is generated
 ```
+
+UX: loading skeletons, an error boundary that keeps one broken page from blanking the app, and helpful empty states (with a
+one-click fix, e.g. lowering a minimum). Colours were checked against WCAG AA; axe reports no violations on any page at
+375 px and desktop.
 
 CI ([`ci.yml`](.github/workflows/ci.yml)): Python lint and tests, a pipeline smoke run on the sample, then frontend
 typecheck, lint, tests and build.

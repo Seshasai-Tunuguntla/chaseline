@@ -1,4 +1,6 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Autocomplete from "../components/Autocomplete";
+import { EmptyState, Skeleton } from "../components/Feedback";
 import { loadJson } from "../lib/data";
 import { deathBowlers, topBatters } from "../lib/explorer";
 import { average, fixed, formatDate, ratio, strikeRate } from "../lib/format";
@@ -38,6 +40,14 @@ function MinBalls({ value, set, label = "Min balls" }: { value: number; set: (n:
   );
 }
 
+function LoadError({ msg }: { msg: string }) {
+  return (
+    <EmptyState tone="error" title="Could not load this table" action={{ label: "Try again", onClick: () => window.location.reload() }}>
+      {msg}
+    </EmptyState>
+  );
+}
+
 function useFile<T>(path: string) {
   const [data, setData] = useState<T | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -52,8 +62,8 @@ function Batters({ seasons }: { seasons: number[] }) {
   const [range, setRange] = useState<[number, number]>([seasons[0], seasons[seasons.length - 1]]);
   const [min, setMin] = useState(500);
   const rows = useMemo(() => (data ? topBatters(data, range[0], range[1], min) : []), [data, range, min]);
-  if (err) return <p className="notice" role="alert">{err}</p>;
-  if (!data) return <p className="notice">Loading…</p>;
+  if (err) return <LoadError msg={err} />;
+  if (!data) return <Skeleton kind="table" />;
   return (
     <>
       <div className="controls panel"><SeasonRange seasons={seasons} from={range[0]} to={range[1]} set={(f, t) => setRange([f, t])} /><MinBalls value={min} set={setMin} /></div>
@@ -67,7 +77,11 @@ function Batters({ seasons }: { seasons: number[] }) {
             ))}
           </tbody>
         </table>
-        {!rows.length && <p className="notice">No batter has faced that many balls in this range. Lower the minimum.</p>}
+        {!rows.length && (
+          <EmptyState title="No batters match" action={min > 1 ? { label: `Try ${Math.max(1, Math.floor(min / 2))}+ balls`, onClick: () => setMin(Math.max(1, Math.floor(min / 2))) } : undefined}>
+            Nobody has faced {min}+ balls in {range[0]}–{range[1]}. Lower the minimum or widen the seasons.
+          </EmptyState>
+        )}
       </div>
     </>
   );
@@ -79,8 +93,8 @@ function Death({ seasons }: { seasons: number[] }) {
   const [range, setRange] = useState<[number, number]>([seasons[0], seasons[seasons.length - 1]]);
   const [min, setMin] = useState(180);
   const rows = useMemo(() => (data && names ? deathBowlers(data, names, range[0], range[1], min) : []), [data, names, range, min]);
-  if (err) return <p className="notice" role="alert">{err}</p>;
-  if (!data || !names) return <p className="notice">Loading…</p>;
+  if (err) return <LoadError msg={err} />;
+  if (!data || !names) return <Skeleton kind="table" />;
   return (
     <>
       <div className="controls panel"><SeasonRange seasons={seasons} from={range[0]} to={range[1]} set={(f, t) => setRange([f, t])} /><MinBalls value={min} set={setMin} label="Min balls bowled" /></div>
@@ -94,7 +108,11 @@ function Death({ seasons }: { seasons: number[] }) {
             ))}
           </tbody>
         </table>
-        {!rows.length && <p className="notice">No bowler has bowled that many death-over balls in this range. Lower the minimum.</p>}
+        {!rows.length && (
+          <EmptyState title="No bowlers match" action={min > 1 ? { label: `Try ${Math.max(1, Math.floor(min / 2))}+ balls`, onClick: () => setMin(Math.max(1, Math.floor(min / 2))) } : undefined}>
+            Nobody has bowled {min}+ death-over balls in {range[0]}–{range[1]}. Lower the minimum or widen the seasons.
+          </EmptyState>
+        )}
       </div>
     </>
   );
@@ -102,8 +120,8 @@ function Death({ seasons }: { seasons: number[] }) {
 
 function Comebacks() {
   const { data, err } = useFile<Comeback[]>("explorer/comebacks.json");
-  if (err) return <p className="notice" role="alert">{err}</p>;
-  if (!data) return <p className="notice">Loading…</p>;
+  if (err) return <LoadError msg={err} />;
+  if (!data) return <Skeleton kind="table" />;
   return (
     <div className="table-wrap" tabIndex={0} role="region" aria-label="Biggest comebacks table">
       <table className="data">
@@ -129,8 +147,8 @@ function Comebacks() {
 function Venues() {
   const { data, err } = useFile<VenueRow[]>("explorer/venues.json");
   const [min, setMin] = useState(10);
-  if (err) return <p className="notice" role="alert">{err}</p>;
-  if (!data) return <p className="notice">Loading…</p>;
+  if (err) return <LoadError msg={err} />;
+  if (!data) return <Skeleton kind="table" />;
   const rows = data.filter((v) => v.matches >= min);
   return (
     <>
@@ -145,6 +163,11 @@ function Venues() {
             ))}
           </tbody>
         </table>
+        {!rows.length && (
+          <EmptyState title="No grounds that busy" action={{ label: "Show all grounds", onClick: () => setMin(1) }}>
+            No ground has hosted {min}+ matches. Lower the minimum.
+          </EmptyState>
+        )}
       </div>
     </>
   );
@@ -152,46 +175,46 @@ function Venues() {
 
 function Matchups() {
   const { data, err } = useFile<BattersFile>("explorer/batters.json");
-  const listId = useId();
-  const [query, setQuery] = useState("V Kohli");
-  const batterId = useMemo(() => {
-    if (!data) return null;
-    const q = query.trim().toLowerCase();
-    return Object.entries(data.names).find(([, n]) => n.toLowerCase() === q)?.[0] ?? null;
-  }, [data, query]);
+  const [batterId, setBatterId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<{ id: string; file: MatchupFile } | null>(null);
-  const mu = loaded && loaded.id === batterId ? loaded.file : null;
   const [bowlerQ, setBowlerQ] = useState("");
+  const options = useMemo(() => {
+    if (!data) return [];
+    const balls = new Map<string, number>();
+    for (const r of data.rows) balls.set(r[0], (balls.get(r[0]) ?? 0) + r[2]);
+    return Object.entries(data.names)
+      .filter(([id]) => balls.has(id))
+      .map(([id, label]) => ({ id, label, hint: `${balls.get(id)} balls` }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [data]);
+  const id = batterId ?? options.find((o) => o.label === "V Kohli")?.id ?? null; // start on a well-known batter
+  const mu = loaded && loaded.id === id ? loaded.file : null;
   useEffect(() => {
-    if (!batterId) return;
-    const done = (file: MatchupFile) => setLoaded({ id: batterId, file });
-    loadJson<MatchupFile>(`matchups/${batterId}.json`).then(done, () => done({ names: {}, rows: [] }));
-  }, [batterId]);
-  if (err) return <p className="notice" role="alert">{err}</p>;
-  if (!data) return <p className="notice">Loading…</p>;
-  const batters = Object.entries(data.names)
-    .map(([id, n]) => ({ id, n }))
-    .sort((a, b) => a.n.localeCompare(b.n));
+    if (!id) return;
+    const done = (file: MatchupFile) => setLoaded({ id, file });
+    loadJson<MatchupFile>(`matchups/${id}.json`).then(done, () => done({ names: {}, rows: [] }));
+  }, [id]);
+  if (err) return <LoadError msg={err} />;
+  if (!data) return <Skeleton kind="table" />;
   const rows = mu?.rows ?? [];
   const bq = bowlerQ.trim().toLowerCase();
   const filtered = bq ? rows.filter((r) => (mu?.names[r[0]] ?? "").toLowerCase().includes(bq)) : rows;
   return (
     <>
       <div className="controls panel">
-        <label className="grow"><span>Batter (type to search)</span>
-          <input list={listId} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. V Kohli" autoComplete="off" />
-          <datalist id={listId}>{batters.map((b) => <option key={b.id} value={b.n} />)}</datalist>
-        </label>
+        <div className="grow">
+          <Autocomplete label="Batter (type a name)" options={options} placeholder="e.g. Kohli" initial="V Kohli"
+            onSelect={(o) => { setBatterId(o.id); setBowlerQ(""); }} />
+        </div>
         <label className="grow"><span>Filter bowlers</span>
           <input value={bowlerQ} onChange={(e) => setBowlerQ(e.target.value)} placeholder="e.g. Bumrah" autoComplete="off" />
         </label>
       </div>
-      {!batterId && <p className="notice">Pick a batter from the list (names are written as in the Cricsheet data, like “V Kohli”).</p>}
-      {batterId && !mu && <p className="notice">Loading…</p>}
-      {batterId && mu && (
+      {id && !mu && <Skeleton kind="table" />}
+      {id && mu && (
         <div className="table-wrap" tabIndex={0} role="region" aria-label="Matchup table">
           <table className="data">
-            <caption>{data.names[batterId]} against each bowler (6+ balls faced, regular innings only)</caption>
+            <caption>{data.names[id]} against each bowler (6+ balls faced, regular innings only)</caption>
             <thead><tr><th scope="col">Bowler</th><th scope="col">Balls</th><th scope="col">Runs</th><th scope="col">SR</th><th scope="col">Outs</th><th scope="col">Dot %</th><th scope="col">4s</th><th scope="col">6s</th></tr></thead>
             <tbody>
               {filtered.slice(0, 60).map(([bid, balls, runs, outs, fours, sixes, dots]) => (
@@ -199,7 +222,11 @@ function Matchups() {
               ))}
             </tbody>
           </table>
-          {!filtered.length && <p className="notice">No bowler matches. {rows.length ? "Clear the filter." : "This batter has not faced anyone for 6+ balls."}</p>}
+          {!filtered.length && (
+            <EmptyState title={rows.length ? "No bowler matches that filter" : "No matchups to show"} action={rows.length ? { label: "Clear the filter", onClick: () => setBowlerQ("") } : undefined}>
+              {rows.length ? `None of the bowlers ${data.names[id]} has faced match “${bowlerQ}”.` : `${data.names[id]} has not faced any bowler for 6 or more balls.`}
+            </EmptyState>
+          )}
           {filtered.length > 60 && <p className="muted small">Showing the 60 bowlers faced most. Use the filter to find others.</p>}
         </div>
       )}

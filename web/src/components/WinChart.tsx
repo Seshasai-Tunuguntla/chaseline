@@ -45,7 +45,7 @@ export default function WinChart({ shape, chaseCode, label, compact }: Props) {
             domain={[0, 20]}
             ticks={[0, 5, 10, 15, 20]}
             tick={{ fill: "#b4c5bb", fontSize: 13 }}
-            stroke="#4a6b5d"
+            stroke="#5d8070"
             label={{ value: "Overs bowled", position: "insideBottom", offset: -2, fill: "#b4c5bb", fontSize: 12 }}
             height={44}
           />
@@ -54,7 +54,7 @@ export default function WinChart({ shape, chaseCode, label, compact }: Props) {
             ticks={[0, 25, 50, 75, 100]}
             tickFormatter={(v: number) => `${v}%`}
             tick={{ fill: "#b4c5bb", fontSize: 13 }}
-            stroke="#4a6b5d"
+            stroke="#5d8070"
             width={46}
           />
           <ReferenceLine y={50} stroke="#f1efe4" strokeOpacity={0.55} />

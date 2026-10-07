@@ -1,5 +1,6 @@
-import { useEffect, useId, useState } from "react";
-import { loadJson } from "../lib/data";
+import { useId, useState } from "react";
+import { Skeleton } from "../components/Feedback";
+import { useJson } from "../lib/data";
 import { formatOvers } from "../lib/format";
 import { lookupWinProb, type WhatIfTable } from "../lib/whatif";
 
@@ -20,14 +21,11 @@ function Field(props: { label: string; value: number; min: number; max: number; 
 }
 
 export default function WhatIf() {
-  const [t, setT] = useState<WhatIfTable | null>(null);
+  const t = useJson<WhatIfTable>("whatif.json");
   const [runs, setRuns] = useState(48);
   const [balls, setBalls] = useState(30);
   const [wk, setWk] = useState(5);
-  useEffect(() => {
-    loadJson<WhatIfTable>("whatif.json").then(setT);
-  }, []);
-  if (!t) return <p className="notice">Loading…</p>;
+  if (!t) return <Skeleton kind="board" label="Loading the what-if table" />;
 
   const p = lookupWinProb(t, runs, balls, wk);
   const rrr = (runs * 6) / balls;

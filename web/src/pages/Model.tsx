@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import { loadJson } from "../lib/data";
+import { lazy, Suspense } from "react";
+import { Skeleton } from "../components/Feedback";
+import { useJson } from "../lib/data";
 import type { CalBin, ModelMetrics, SiteIndex } from "../lib/types";
 
 const Calibration = lazy(() => import("../components/Calibration"));
@@ -35,11 +36,8 @@ function CalTable({ bins }: { bins: CalBin[] }) {
 }
 
 export default function Model({ index }: { index: SiteIndex }) {
-  const [m, setM] = useState<ModelMetrics | null>(null);
-  useEffect(() => {
-    loadJson<ModelMetrics>("model.json").then(setM);
-  }, []);
-  if (!m) return <p className="notice">Loading…</p>;
+  const m = useJson<ModelMetrics>("model.json");
+  if (!m) return <Skeleton kind="text" label="Loading model results" />;
   const best = m.chosen_model;
   const vsRrr = m.bootstrap_vs_rrr_rule;
   const vsLogit = m.bootstrap_vs_logit;
@@ -145,7 +143,7 @@ export default function Model({ index }: { index: SiteIndex }) {
           For each season, the model below was trained on <em>earlier</em> seasons only and then scored on that season (rolling origin).
           This is the honest way to read the model as a forecaster. The set-up itself was chosen using {m.validation_season}, so only {m.test_season} is a clean test.
         </p>
-        <Suspense fallback={<div className="chart-skel">Loading chart…</div>}>
+        <Suspense fallback={<Skeleton kind="chart" label="Loading chart" />}>
           <SeasonBrier rows={m.rolling_origin} />
         </Suspense>
         <p>
@@ -170,7 +168,7 @@ export default function Model({ index }: { index: SiteIndex }) {
 
       <section className="panel">
         <h2>Calibration: when it says 70%, do teams win about 70%?</h2>
-        <Suspense fallback={<div className="chart-skel">Loading chart…</div>}>
+        <Suspense fallback={<Skeleton kind="chart" label="Loading chart" />}>
           <Calibration pooled={m.calibration_pooled} holdout={m.calibration_holdout} season={m.test_season} />
         </Suspense>
         <p>

@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 const cache = new Map<string, Promise<unknown>>();
 
 /** Fetch a static JSON file under /data once; later calls reuse the same promise. */
@@ -12,4 +14,21 @@ export function loadJson<T>(path: string): Promise<T> {
     cache.set(path, p);
   }
   return p as Promise<T>;
+}
+
+/** Load a JSON file for a component. Failures are rethrown during render so the nearest ErrorBoundary shows them. */
+export function useJson<T>(path: string): T | null {
+  const [state, setState] = useState<{ data?: T; error?: Error } | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadJson<T>(path).then(
+      (data) => live && setState({ data }),
+      (error: Error) => live && setState({ error }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  if (state?.error) throw state.error;
+  return state?.data ?? null;
 }

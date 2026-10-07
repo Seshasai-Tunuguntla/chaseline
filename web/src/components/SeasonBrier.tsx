@@ -12,9 +12,9 @@ export default function SeasonBrier({ rows }: { rows: RollingRow[] }) {
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={data} margin={{ top: 12, right: 18, bottom: 6, left: 0 }}>
           <CartesianGrid stroke="#27443a" strokeDasharray="2 5" />
-          <XAxis dataKey="season" tick={{ fill: "#b4c5bb", fontSize: 13 }} stroke="#4a6b5d" interval="preserveStartEnd" />
-          <YAxis domain={[0.1, 0.22]} tickFormatter={(v: number) => v.toFixed(2)} tick={{ fill: "#b4c5bb", fontSize: 13 }} stroke="#4a6b5d" width={44} />
-          <Tooltip contentStyle={{ background: "#111f1a", border: "1px solid #4a6b5d", color: "#f1efe4" }} formatter={(v) => Number(v).toFixed(3)} />
+          <XAxis dataKey="season" tick={{ fill: "#b4c5bb", fontSize: 13 }} stroke="#5d8070" interval="preserveStartEnd" />
+          <YAxis domain={[0.1, 0.22]} tickFormatter={(v: number) => v.toFixed(2)} tick={{ fill: "#b4c5bb", fontSize: 13 }} stroke="#5d8070" width={44} />
+          <Tooltip contentStyle={{ background: "#111f1a", border: "1px solid #5d8070", color: "#f1efe4" }} formatter={(v) => Number(v).toFixed(3)} />
           <Legend verticalAlign="top" wrapperStyle={{ color: "#f1efe4", fontSize: 13 }} />
           <Line name="Chaseline model" dataKey="model" stroke="#ffb43a" strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={false} />
           <Line name="Required-run-rate baseline" dataKey="rrr" stroke="#7fdcff" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} isAnimationActive={false} />

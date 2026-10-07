@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { loadJson } from "./lib/data";
 import type { SiteIndex } from "./lib/types";
 import { legacyHashToPath, navigate, parsePath, type Route } from "./lib/route";
+import { ErrorBoundary, Skeleton, EmptyState } from "./components/Feedback";
 import Replay from "./pages/Replay";
 
 const Explorer = lazy(() => import("./pages/Explorer"));
@@ -85,9 +86,14 @@ export default function App() {
         </nav>
       </header>
       <main id="main" tabIndex={-1}>
-        {error && <p className="notice" role="alert">Could not load data: {error}</p>}
+        {error && (
+          <EmptyState level={1} tone="error" title="Could not load the data" action={{ label: "Try again", onClick: () => window.location.reload() }}>
+            The site’s data files did not load ({error}). Check your connection and try again.
+          </EmptyState>
+        )}
         {index && (
-          <Suspense fallback={<p className="notice">Loading…</p>}>
+          <ErrorBoundary resetKey={`${route.page}/${route.arg ?? ""}`}>
+          <Suspense fallback={<Skeleton kind="board" />}>
             {route.page === "explorer" ? (
               <Explorer index={index} />
             ) : route.page === "player" ? (
@@ -100,8 +106,9 @@ export default function App() {
               <Replay index={index} matchId={route.arg ?? index.featured} />
             )}
           </Suspense>
+          </ErrorBoundary>
         )}
-        {!index && !error && <p className="notice">Loading…</p>}
+        {!index && !error && <Skeleton kind="board" />}
       </main>
       <footer className="foot">
         <p>

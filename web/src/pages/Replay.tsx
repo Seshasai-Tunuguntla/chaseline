@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { navigate } from "../lib/route";
+import { EmptyState, Skeleton } from "../components/Feedback";
 import { loadJson } from "../lib/data";
 import { formatDate, formatOvers, shortDate, signedPct } from "../lib/format";
 import { describeReplay, shapeReplay } from "../lib/replay";
@@ -51,8 +52,14 @@ export default function Replay({ index, matchId }: { index: SiteIndex; matchId: 
   }, [season]);
 
   const shape = useMemo(() => (doc?.chase ? shapeReplay(doc.chase) : null), [doc]);
-  if (failed && failed.id === matchId) return <p className="notice" role="alert">{failed.msg}</p>;
-  if (!doc) return <p className="notice">Loading match…</p>;
+  if (failed && failed.id === matchId) {
+    return (
+      <EmptyState level={1} tone="error" title="That match could not be loaded" action={{ label: "Go to the featured match", onClick: () => index.featured && go(index.featured) }}>
+        There is no match with that id, or the file failed to load ({failed.msg}).
+      </EmptyState>
+    );
+  }
+  if (!doc) return <div className="stack"><Skeleton kind="board" label="Loading match" /><Skeleton kind="chart" label="Loading chart" /></div>;
 
   const chase = doc.chase;
   const i = list.findIndex((m) => m.id === doc.id);
@@ -136,7 +143,7 @@ export default function Replay({ index, matchId }: { index: SiteIndex; matchId: 
               <span className="key"><i className="dot chalk" /> boundary or big ball</span>
               <span className="key"><i className="band" /> big over</span>
             </p>
-            <Suspense fallback={<div className="chart-skel">Loading chart…</div>}>
+            <Suspense fallback={<Skeleton kind="chart" label="Loading chart" />}>
               <WinChart shape={shape} chaseCode={chaseCode} compact={narrow} label={describeReplay(shape.points, chase.team)} />
             </Suspense>
             <h2>Biggest swings</h2>
@@ -155,11 +162,11 @@ export default function Replay({ index, matchId }: { index: SiteIndex; matchId: 
             <p className="muted small">Swings are measured for {chase.team}. Probabilities are out-of-sample: this season was not in the training data of the model that drew the line.</p>
           </>
         ) : (
-          <p className="notice">
+          <EmptyState title={chase ? "No win-probability line for this match" : "No chase to chart"}>
             {chase
-              ? `No win-probability line for this match: the chase was shortened or re-targeted (rain, D/L), which the model does not cover. ${chase.team} reached ${chase.runs[lastStep]}/${chase.wickets[lastStep]} in ${formatOvers(chase.balls[lastStep])} overs against a revised target of ${chase.target}.`
-              : "No second innings was played in this match (abandoned), so there is no chase to chart."}
-          </p>
+              ? `The chase was shortened or re-targeted (rain, D/L), which the model does not cover. ${chase.team} reached ${chase.runs[lastStep]}/${chase.wickets[lastStep]} in ${formatOvers(chase.balls[lastStep])} overs against a revised target of ${chase.target}.`
+              : "No second innings was played in this match (it was abandoned)."}
+          </EmptyState>
         )}
       </section>
     </div>

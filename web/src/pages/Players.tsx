@@ -1,6 +1,8 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { navigate } from "../lib/route";
-import { loadJson } from "../lib/data";
+import Autocomplete from "../components/Autocomplete";
+import { EmptyState, Skeleton } from "../components/Feedback";
+import { loadJson, useJson } from "../lib/data";
 import { fixed } from "../lib/format";
 import { batCareer, bowlCareer } from "../lib/player";
 import { strikeRate, economy, average } from "../lib/format";
@@ -16,20 +18,16 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function Search({ index, current }: { index: PlayerIndex; current?: string }) {
-  const listId = useId();
-  const [q, setQ] = useState("");
-  const go = (v: string) => {
-    setQ(v);
-    const hit = index.find((r) => r[1].toLowerCase() === v.trim().toLowerCase());
-    if (hit) navigate(`/player/${hit[0]}`);
-  };
+  const options = useMemo(
+    () => index.map((r) => ({ id: r[0], label: r[1], hint: r[2] && r[3] ? "bat + bowl" : r[2] ? "batter" : "bowler" })),
+    [index],
+  );
   return (
     <div className="controls panel">
-      <label className="grow">
-        <span>Find a player (type a name, e.g. “V Kohli”)</span>
-        <input list={listId} value={q} onChange={(e) => go(e.target.value)} placeholder={current ?? "Search players"} autoComplete="off" />
-        <datalist id={listId}>{index.map((r) => <option key={r[0]} value={r[1]} />)}</datalist>
-      </label>
+      <div className="grow">
+        <Autocomplete label="Find a player" options={options} placeholder="Type a name, e.g. Kohli" initial={current ?? ""}
+          onSelect={(o) => navigate(`/player/${o.id}`)} />
+      </div>
     </div>
   );
 }
@@ -49,8 +47,14 @@ function Profile({ id }: { id: string }) {
       live = false;
     };
   }, [id]);
-  if (!state || state.id !== id) return <p className="notice">Loading…</p>;
-  if (state.err || !state.file) return <p className="notice" role="alert">Player not found.</p>;
+  if (!state || state.id !== id) return <Skeleton kind="profile" label="Loading player" />;
+  if (state.err || !state.file) {
+    return (
+      <EmptyState level={1} title="Player not found" action={{ label: "Browse all players", onClick: () => navigate("/player") }}>
+        There is no profile for that player. Players with fewer than 60 balls batted or bowled are left out.
+      </EmptyState>
+    );
+  }
   const p = state.file;
   const bat = batCareer(p);
   const bowl = bowlCareer(p);
@@ -123,11 +127,8 @@ function Profile({ id }: { id: string }) {
 }
 
 export default function Players({ playerId }: { index: SiteIndex; playerId?: string }) {
-  const [list, setList] = useState<PlayerIndex | null>(null);
-  useEffect(() => {
-    loadJson<PlayerIndex>("players/index.json").then(setList);
-  }, []);
-  if (!list) return <p className="notice">Loading…</p>;
+  const list = useJson<PlayerIndex>("players/index.json");
+  if (!list) return <Skeleton kind="table" label="Loading players" />;
   const top = [...list].sort((a, b) => b[2] + b[3] - (a[2] + a[3])).slice(0, 24);
   return (
     <div className="stack">
