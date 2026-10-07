@@ -62,7 +62,7 @@ function Batters({ seasons }: { seasons: number[] }) {
           <thead><tr><th scope="col">#</th><th scope="col">Batter</th><th scope="col">SR</th><th scope="col">Runs</th><th scope="col">Balls</th><th scope="col">Avg</th><th scope="col">4s</th><th scope="col">6s</th></tr></thead>
           <tbody>
             {rows.map((b, i) => (
-              <tr key={b.id}><td>{i + 1}</td><th scope="row">{b.name}</th><td className="num hl-n">{b.sr.toFixed(1)}</td><td>{b.runs}</td><td>{b.balls}</td><td>{average(b.runs, b.outs)}</td><td>{b.fours}</td><td>{b.sixes}</td></tr>
+              <tr key={b.id}><td>{i + 1}</td><th scope="row"><a href={`#/player/${b.id}`}>{b.name}</a></th><td className="num hl-n">{b.sr.toFixed(1)}</td><td>{b.runs}</td><td>{b.balls}</td><td>{average(b.runs, b.outs)}</td><td>{b.fours}</td><td>{b.sixes}</td></tr>
             ))}
           </tbody>
         </table>
@@ -89,7 +89,7 @@ function Death({ seasons }: { seasons: number[] }) {
           <thead><tr><th scope="col">#</th><th scope="col">Bowler</th><th scope="col">Econ</th><th scope="col">Wkts</th><th scope="col">Balls</th><th scope="col">Runs</th><th scope="col">Balls/wkt</th></tr></thead>
           <tbody>
             {rows.map((b, i) => (
-              <tr key={b.id}><td>{i + 1}</td><th scope="row">{b.name}</th><td className="num hl-n">{b.econ.toFixed(2)}</td><td>{b.wickets}</td><td>{b.balls}</td><td>{b.runs}</td><td>{b.wickets ? (b.balls / b.wickets).toFixed(1) : "—"}</td></tr>
+              <tr key={b.id}><td>{i + 1}</td><th scope="row"><a href={`#/player/${b.id}`}>{b.name}</a></th><td className="num hl-n">{b.econ.toFixed(2)}</td><td>{b.wickets}</td><td>{b.balls}</td><td>{b.runs}</td><td>{b.wickets ? (b.balls / b.wickets).toFixed(1) : "—"}</td></tr>
             ))}
           </tbody>
         </table>
@@ -168,7 +168,7 @@ function Matchups() {
             <thead><tr><th scope="col">Bowler</th><th scope="col">Balls</th><th scope="col">Runs</th><th scope="col">SR</th><th scope="col">Outs</th><th scope="col">Dot %</th><th scope="col">4s</th><th scope="col">6s</th></tr></thead>
             <tbody>
               {filtered.slice(0, 60).map(([bid, balls, runs, outs, fours, sixes, dots]) => (
-                <tr key={bid}><th scope="row">{mu.names[bid]}</th><td>{balls}</td><td>{runs}</td><td className="num hl-n">{strikeRate(runs, balls).toFixed(0)}</td><td>{outs}</td><td>{ratio(dots, balls)}</td><td>{fours}</td><td>{sixes}</td></tr>
+                <tr key={bid}><th scope="row"><a href={`#/player/${bid}`}>{mu.names[bid]}</a></th><td>{balls}</td><td>{runs}</td><td className="num hl-n">{strikeRate(runs, balls).toFixed(0)}</td><td>{outs}</td><td>{ratio(dots, balls)}</td><td>{fours}</td><td>{sixes}</td></tr>
               ))}
             </tbody>
           </table>

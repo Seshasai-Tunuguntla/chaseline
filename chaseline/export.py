@@ -126,6 +126,7 @@ def export_matches(out: Path, matches: pd.DataFrame, deliveries: pd.DataFrame, s
             "t2": clean.TEAM_CODES.get(m["team2"], m["team2"]),
             "w": clean.TEAM_CODES.get(m["winner"], "") if isinstance(m["winner"], str) else "",
             "result": result_text(m), "venue": m["venue"], "stage": m["stage"], "p": bool(chase and chase["modelled"]),
+            "d": round(drama.get(mid, 0.0), 2),
         })
     for season, rows in season_rows.items():
         _dump(out / "seasons" / f"{season}.json", rows)
@@ -180,9 +181,42 @@ def export_explorer(out: Path, con: duckdb.DuckDBPyConnection) -> None:
     by_batter: dict[str, list] = {}
     for r in pairs:
         by_batter.setdefault(r[0], []).append(list(r[1:]))
+    export_players(out, con, names)
     shutil.rmtree(out / "matchups", ignore_errors=True)
     for bid, rows in by_batter.items():
         _dump(out / "matchups" / f"{bid}.json", {"names": {r[0]: names.get(r[0], "?") for r in rows}, "rows": rows})
+
+
+def export_players(out: Path, con: duckdb.DuckDBPyConnection, names: dict) -> None:
+    """One small file per player (career by season) plus a searchable index."""
+    bat: dict[str, list] = {}
+    for r in con.execute(
+        """SELECT b.batter_id, b.season, b.inns, b.balls, b.runs, coalesce(o.outs, 0), b.fours, b.sixes FROM (
+             SELECT batter_id, season, count(DISTINCT match_id)::INT AS inns, count(*) FILTER (wides = 0)::INT AS balls,
+                    sum(batter_runs)::INT AS runs, count(*) FILTER (batter_runs = 4)::INT AS fours,
+                    count(*) FILTER (batter_runs = 6)::INT AS sixes
+             FROM reg GROUP BY 1, 2) b
+           LEFT JOIN (SELECT player_out_id AS id, season, count(*)::INT AS outs FROM reg WHERE is_wicket GROUP BY 1, 2) o
+             ON o.id = b.batter_id AND o.season = b.season ORDER BY 1, 2""").fetchall():
+        bat.setdefault(r[0], []).append(list(r[1:]))
+    bowl: dict[str, list] = {}
+    for r in con.execute(
+        """SELECT bowler_id, season, count(DISTINCT match_id)::INT, count(*) FILTER (legal)::INT,
+                  sum(batter_runs + wides + noballs)::INT, count(*) FILTER (bowler_wicket)::INT
+           FROM reg GROUP BY 1, 2 ORDER BY 1, 2""").fetchall():
+        bowl.setdefault(r[0], []).append(list(r[1:]))
+    shutil.rmtree(out / "players", ignore_errors=True)
+    index = []
+    for pid in sorted(set(bat) | set(bowl)):
+        bb = sum(r[2] for r in bat.get(pid, []))
+        wb = sum(r[2] for r in bowl.get(pid, []))
+        if bb + wb < 60:
+            continue
+        _dump(out / "players" / f"{pid}.json", {"id": pid, "name": names.get(pid, pid),
+                                                "bat": bat.get(pid, []), "bowl": bowl.get(pid, [])})
+        index.append([pid, names.get(pid, pid), bb, wb])
+    index.sort(key=lambda r: (r[1], r[0]))
+    _dump(out / "players" / "index.json", index)
 
 
 def export_all(out: Path, con: duckdb.DuckDBPyConnection, matches: pd.DataFrame, deliveries: pd.DataFrame,

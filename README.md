@@ -12,6 +12,8 @@
 
 - **Match replay.** Pick a season and a match. See the chasing side's win probability after every ball, with the
   biggest swings (wickets, boundaries, big overs) marked and listed in text.
+- **Players.** Search any player for career batting and bowling by season and the bowlers they have faced most.
+  Names in the Explorer tables link to profiles. The replay page also lists each season's most dramatic matches.
 - **Explorer.** Batter v bowler matchups, best death-over (overs 16-20) bowlers, top batters by strike rate with a
   minimum-balls filter, and venue stats.
 - **The model.** How the probabilities are made, how they compare with a required-run-rate baseline, a calibration
@@ -47,7 +49,7 @@ flowchart LR
 ```
 
 - **Stack:** pandas, DuckDB, scikit-learn; Vite, React, TypeScript, Recharts; Vercel; GitHub Actions.
-- **Small files:** one JSON file per match (about 4 KB), one per batter for matchups, one per season for the match
+- **Small files:** one JSON file per match (about 4 KB), one per batter for matchups, one per player for profiles, one per season for the match
   list. A page loads only what it shows. The chart libraries are code-split.
 - **Weekly refresh:** [`refresh-data.yml`](.github/workflows/refresh-data.yml) rebuilds everything on Mondays,
   fails if a data-quality check fails, and commits changed files. Vercel then redeploys.

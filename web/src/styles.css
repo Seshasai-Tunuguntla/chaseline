@@ -153,3 +153,16 @@ details { margin-top: 12px; } summary { cursor: pointer; color: var(--amber); fo
   .overs { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+/* players, drama chips */
+.chips { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.chips a { display: inline-block; padding: 9px 12px; min-height: 40px; border: 1px solid #4a6b5d; border-radius: 6px; text-decoration: none; color: var(--chalk); font-weight: 600; font-size: 15px; }
+.chips a:hover, .chips a[aria-current="true"] { border-color: var(--amber); color: var(--amber); }
+.drama { padding-top: 14px; }
+.drama-h { font: 800 15px var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.stat { display: grid; gap: 2px; background: #060d0a; border: 1px solid var(--line); border-radius: 8px; padding: 10px; text-align: center; }
+.led-sm { font: 500 28px/1.1 var(--mono); color: var(--amber); text-shadow: 0 0 10px rgba(255, 180, 58, 0.4); }
+.stat-label { font: 600 12px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+table.data a { color: var(--chalk); text-decoration-color: #4a6b5d; }
+table.data a:hover { color: var(--amber); }

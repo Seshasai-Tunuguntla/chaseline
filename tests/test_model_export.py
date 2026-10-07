@@ -80,6 +80,9 @@ def test_smoke_pipeline_writes_consistent_site_data(tmp_path):
             assert all(1 <= s["step"] < n for s in c["swings"])
     assert modelled > 5
     assert (out / "model.json").exists() and (out / "explorer" / "batters.json").exists()
+    assert (out / "players" / "index.json").exists()
+    idx = json.loads((out / "players" / "index.json").read_text())
+    assert idx and all((out / "players" / f"{r[0]}.json").exists() for r in idx)
     assert (tmp_path / "win_prob.parquet").exists()
     assert sum(f.stat().st_size for f in files) / len(files) < 20_000
 

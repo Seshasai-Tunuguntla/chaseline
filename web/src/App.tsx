@@ -4,6 +4,7 @@ import type { SiteIndex } from "./lib/types";
 import Replay from "./pages/Replay";
 
 const Explorer = lazy(() => import("./pages/Explorer"));
+const Players = lazy(() => import("./pages/Players"));
 const Model = lazy(() => import("./pages/Model"));
 
 function parseHash(): { page: string; arg?: string } {
@@ -48,6 +49,7 @@ export default function App() {
   const nav = [
     ["replay", "Match replay"],
     ["explorer", "Explorer"],
+    ["player", "Players"],
     ["model", "The model"],
   ] as const;
 
@@ -73,6 +75,8 @@ export default function App() {
           <Suspense fallback={<p className="notice">Loading…</p>}>
             {route.page === "explorer" ? (
               <Explorer index={index} />
+            ) : route.page === "player" ? (
+              <Players index={index} playerId={route.arg} />
             ) : route.page === "model" ? (
               <Model index={index} />
             ) : (

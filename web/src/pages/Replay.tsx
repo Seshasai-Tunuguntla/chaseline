@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { loadJson } from "../lib/data";
 import { formatDate, formatOvers, shortDate, signedPct } from "../lib/format";
 import { describeReplay, shapeReplay } from "../lib/replay";
+import { mostDramatic } from "../lib/player";
 import type { MatchDoc, SeasonMatch, SiteIndex } from "../lib/types";
 
 const WinChart = lazy(() => import("../components/WinChart"));
@@ -87,10 +88,23 @@ export default function Replay({ index, matchId }: { index: SiteIndex; matchId: 
           </select>
         </label>
         <div className="pager">
-          <button type="button" disabled={i <= 0} onClick={() => go(list[i - 1].id)} aria-label="Previous match">‹ Prev</button>
-          <button type="button" disabled={i < 0 || i >= list.length - 1} onClick={() => go(list[i + 1].id)} aria-label="Next match">Next ›</button>
+          <button type="button" disabled={i <= 0} onClick={() => go(list[i - 1].id)}>‹ Prev</button>
+          <button type="button" disabled={i < 0 || i >= list.length - 1} onClick={() => go(list[i + 1].id)}>Next ›</button>
         </div>
       </section>
+
+      {list.length > 0 && (
+        <nav className="panel drama" aria-label={`Most dramatic matches of ${doc.season}`}>
+          <span className="drama-h">Most dramatic in {doc.season}</span>
+          <ul className="chips">
+            {mostDramatic(list, 5).map((m) => (
+              <li key={m.id}>
+                <a href={`#/replay/${m.id}`} aria-current={m.id === doc.id ? "true" : undefined}>{shortDate(m.date)} · {m.t1} v {m.t2}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
 
       <section className="board" aria-label="Scoreboard">
         <div className="board-teams">

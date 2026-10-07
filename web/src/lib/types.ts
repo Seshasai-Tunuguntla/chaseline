@@ -17,6 +17,7 @@ export interface SeasonMatch {
   venue: string;
   stage: string;
   p: boolean;
+  d: number; // total win-probability movement; higher = more dramatic
 }
 
 export interface Swing {
@@ -118,3 +119,11 @@ export interface ModelMetrics {
   mean_pred_holdout: number;
   mean_obs_holdout: number;
 }
+
+export interface PlayerFile {
+  id: string;
+  name: string;
+  bat: [number, number, number, number, number, number, number][]; // season, innings, balls, runs, outs, 4s, 6s
+  bowl: [number, number, number, number, number][]; // season, matches, legal balls, runs, wickets
+}
+export type PlayerIndex = [string, string, number, number][]; // id, name, balls faced, balls bowled
