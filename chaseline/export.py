@@ -67,10 +67,11 @@ def find_swings(chase: pd.DataFrame, balls: pd.DataFrame) -> list[dict]:
             kind, label = "wicket", f"W {surname(b['player_out'])}"
             text = f"{b['player_out']} out ({b['wicket_kind']}, {b['bowler']})"
         elif b["batter_runs"] >= 4:
-            kind, label = "boundary", str(int(b["batter_runs"]))
+            kind, label = "boundary", "SIX" if b["batter_runs"] >= 6 else "FOUR"
             text = f"{b['batter']} hits {int(b['batter_runs'])} off {b['bowler']}"
         else:
-            kind, label = "ball", f"{int(b['total_runs'])}"
+            n = int(b["total_runs"])
+            kind, label = "ball", "dot" if n == 0 else f"{n} run{'s' if n > 1 else ''}"
             text = f"{int(b['total_runs'])} off {b['bowler']}"
         swings.append({"step": step, "kind": kind, "label": label, "delta": round(float(delta[i]), 3),
                        "text": f"{ball_label(chase['legal_balls'].iloc[step])}: {text}"})
@@ -135,11 +136,11 @@ def export_explorer(out: Path, con: duckdb.DuckDBPyConnection) -> None:
     con.execute("""CREATE OR REPLACE TEMP VIEW reg AS
         SELECT d.*, m.season FROM deliveries d JOIN matches m USING (match_id) WHERE NOT d.is_super_over""")
     names = dict(con.execute(
-        """SELECT id, name FROM (
-             SELECT batter_id AS id, arg_max(batter, date) AS name FROM reg JOIN matches USING (match_id) GROUP BY 1
+        """SELECT id, arg_max(name, date || '|' || name) FROM (
+             SELECT batter_id AS id, batter AS name, date FROM reg JOIN matches USING (match_id)
              UNION ALL
-             SELECT bowler_id, arg_max(bowler, date) FROM reg JOIN matches USING (match_id) GROUP BY 1)
-           QUALIFY row_number() OVER (PARTITION BY id) = 1""").fetchall())
+             SELECT bowler_id, bowler, date FROM reg JOIN matches USING (match_id))
+           GROUP BY id""").fetchall())
     bat = con.execute(
         """SELECT b.batter_id, b.season, b.balls, b.runs, coalesce(o.outs, 0) AS outs, b.fours, b.sixes FROM (
              SELECT batter_id, season, count(*) FILTER (wides = 0)::INT AS balls, sum(batter_runs)::INT AS runs,
@@ -153,7 +154,7 @@ def export_explorer(out: Path, con: duckdb.DuckDBPyConnection) -> None:
                   count(*) FILTER (bowler_wicket)::INT
            FROM reg WHERE over >= 15 GROUP BY 1, 2 ORDER BY 1, 2""").fetchall()
     used = {r[0] for r in bat} | {r[0] for r in bowl}
-    _dump(out / "explorer" / "batters.json", {"names": {k: names[k] for k in used if k in names},
+    _dump(out / "explorer" / "batters.json", {"names": {k: names[k] for k in sorted(used) if k in names},
                                               "rows": [list(r) for r in bat]})
     _dump(out / "explorer" / "death_bowlers.json", {"rows": [list(r) for r in bowl]})
     venues = con.execute(
@@ -167,7 +168,7 @@ def export_explorer(out: Path, con: duckdb.DuckDBPyConnection) -> None:
            FROM matches m
            JOIN innings_totals a ON a.match_id = m.match_id AND a.innings = 1 AND NOT a.is_super_over
            JOIN innings_totals b ON b.match_id = m.match_id AND b.innings = 2 AND NOT b.is_super_over
-           GROUP BY 1 HAVING matches >= 3 ORDER BY matches DESC""").fetchall()
+           GROUP BY 1 HAVING matches >= 3 ORDER BY matches DESC, m.venue""").fetchall()
     cols = ["venue", "matches", "avg1", "avg2", "high1", "chase_wins", "decided", "first_season", "last_season"]
     _dump(out / "explorer" / "venues.json", [dict(zip(cols, r, strict=True)) for r in venues])
     pairs = con.execute(
@@ -175,7 +176,7 @@ def export_explorer(out: Path, con: duckdb.DuckDBPyConnection) -> None:
                    count(*) FILTER (bowler_wicket AND player_out_id = batter_id)::INT AS outs,
                    count(*) FILTER (batter_runs = 4)::INT, count(*) FILTER (batter_runs = 6)::INT,
                    count(*) FILTER (wides = 0 AND batter_runs = 0 AND byes = 0 AND legbyes = 0)::INT AS dots
-            FROM reg GROUP BY 1, 2 HAVING balls >= {MIN_MATCHUP_BALLS} ORDER BY 1, balls DESC""").fetchall()
+            FROM reg GROUP BY 1, 2 HAVING balls >= {MIN_MATCHUP_BALLS} ORDER BY 1, balls DESC, 2""").fetchall()
     by_batter: dict[str, list] = {}
     for r in pairs:
         by_batter.setdefault(r[0], []).append(list(r[1:]))

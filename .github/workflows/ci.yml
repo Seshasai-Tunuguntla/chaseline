@@ -18,3 +18,21 @@ jobs:
       - run: pytest -q -m "not data"
       - name: Pipeline smoke run on the committed sample
         run: python -m chaseline.run --smoke --out "$RUNNER_TEMP/site-data" --db "$RUNNER_TEMP/smoke.duckdb"
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

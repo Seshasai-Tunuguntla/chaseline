@@ -1,0 +1,35 @@
+name: Refresh data
+# Re-runs the pipeline against the latest Cricsheet files and commits changed outputs.
+# Vercel redeploys automatically when the commit lands on main.
+on:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays 05:17 UTC (weekly; the IPL runs roughly March to June)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -q -m "not data"
+      - name: Rebuild data (fails if any data-quality check fails)
+        run: make data PY=python
+      - name: Commit refreshed outputs
+        run: |
+          git config user.name "chaseline-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add web/public/data
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "Refresh data $(date -u +%F)"
+            git push
+          fi

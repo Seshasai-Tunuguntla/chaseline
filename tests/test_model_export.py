@@ -94,3 +94,14 @@ def test_full_model_beats_baselines_on_holdout():
     assert best["brier"] < h["holdout"]["rrr_rule"]["brier"] < h["holdout"]["coin_flip"]["brier"]
     assert best["log_loss"] < h["holdout"]["rrr_rule"]["log_loss"]
     assert h["holdout_chases"] >= 50
+
+
+def test_pipeline_output_is_reproducible(tmp_path):
+    """Same input, same seeds: byte-identical site data."""
+    outs = []
+    for i in range(2):
+        out = tmp_path / f"run{i}"
+        run.main(["--smoke", "--out", str(out), "--db", str(tmp_path / f"r{i}.duckdb")])
+        outs.append({str(p.relative_to(out)): p.read_bytes() for p in out.rglob("*.json")})
+    assert outs[0].keys() == outs[1].keys()
+    assert all(outs[0][k] == outs[1][k] for k in outs[0])
