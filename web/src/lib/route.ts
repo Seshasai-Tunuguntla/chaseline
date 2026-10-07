@@ -1,9 +1,9 @@
 export interface Route {
-  page: "replay" | "explorer" | "player" | "model";
+  page: "replay" | "explorer" | "player" | "model" | "whatif";
   arg?: string;
 }
 
-const PAGES = new Set(["replay", "explorer", "player", "model"]);
+const PAGES = new Set(["replay", "explorer", "player", "model", "whatif"]);
 
 /** Parse a clean path such as /replay/1082591 (anything unknown falls back to the replay page). */
 export function parsePath(pathname: string): Route {

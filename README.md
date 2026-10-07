@@ -14,6 +14,9 @@
   biggest swings (wickets, boundaries, big overs) marked and listed in text.
 - **Players.** Search any player for career batting and bowling by season and the bowlers they have faced most.
   Names in the Explorer tables link to profiles. The replay page also lists each season's most dramatic matches.
+- **What if?** Set runs needed, balls left and wickets in hand and read off the chasing side's win probability, plus
+  how one more wicket, six or dot ball would move it. Values come from a precomputed 48,000-cell table
+  (`whatif.json`, about 22 KB gzipped) at the current scoring environment, interpolated in the browser.
 - **Explorer.** Batter v bowler matchups, best death-over (overs 16-20) bowlers, top batters by strike rate with a
   minimum-balls filter, venue stats, and the biggest comebacks (the winner's lowest chance during the chase).
 - **The model.** How the probabilities are made, how they compare with a required-run-rate baseline, a calibration
@@ -107,6 +110,10 @@ using models trained on 2008-2024. The best was scoring environment + era flag, 
 predicted 51% vs actual 63% is unchanged. 2025 could not tell the candidates apart, so it could not pick a fix that
 works on 2026. Isotonic recalibration fitted on one season was sometimes much worse (it produces hard 0% and 100%
 steps). The remaining gap is a real shift in how chases went in 2026 that nothing known by the end of 2025 predicted.
+
+**Momentum inputs (dot balls and boundaries in the last 12 balls)** were tried on top of the best set-up and kept only
+if they beat it on the 2025 validation season. They did not (Brier 0.1244 with, 0.1239 without), so the final model
+does not use them.
 
 ### Rolling-origin evaluation (the honest forecasting view)
 

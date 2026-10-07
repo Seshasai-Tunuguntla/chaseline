@@ -166,3 +166,10 @@ details { margin-top: 12px; } summary { cursor: pointer; color: var(--amber); fo
 .stat-label { font: 600 12px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 table.data a { color: var(--chalk); text-decoration-color: #4a6b5d; }
 table.data a:hover { color: var(--amber); }
+
+/* what-if */
+.fields { display: grid; gap: 14px; margin-top: 8px; }
+.field label { display: block; font: 600 13px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.field-row { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+input[type="range"] { padding: 0; min-height: 44px; accent-color: var(--amber); background: transparent; border: 0; }
+td.up { color: var(--green); } td.down { color: var(--red); }

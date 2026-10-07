@@ -6,6 +6,7 @@ describe("parsePath", () => {
     expect(parsePath("/replay/1082591")).toEqual({ page: "replay", arg: "1082591" });
     expect(parsePath("/player/ba607b88/")).toEqual({ page: "player", arg: "ba607b88" });
     expect(parsePath("/model")).toEqual({ page: "model", arg: undefined });
+    expect(parsePath("/whatif")).toEqual({ page: "whatif", arg: undefined });
   });
   it("falls back to the replay page", () => {
     expect(parsePath("/")).toEqual({ page: "replay", arg: undefined });

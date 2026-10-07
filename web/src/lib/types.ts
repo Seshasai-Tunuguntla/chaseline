@@ -103,7 +103,8 @@ export interface ModelMetrics {
   train_seasons: [number, number];
   validation_season: number;
   candidates: Candidate[];
-  chosen_config: { name: string; features: string; half_life: number | null; era: boolean; recal: string };
+  momentum_test: { without: number; with: number; adopted: boolean } | null;
+  chosen_config: { name: string; features: string; half_life: number | null; era: boolean; recal: string; momentum?: boolean };
   chosen_model: string;
   holdout: Record<string, Scores>;
   holdout_chases: number;

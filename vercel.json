@@ -48,6 +48,10 @@
     {
       "source": "/player",
       "destination": "/index.html"
+    },
+    {
+      "source": "/whatif",
+      "destination": "/index.html"
     }
   ]
 }

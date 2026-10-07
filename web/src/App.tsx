@@ -6,6 +6,7 @@ import Replay from "./pages/Replay";
 
 const Explorer = lazy(() => import("./pages/Explorer"));
 const Players = lazy(() => import("./pages/Players"));
+const WhatIf = lazy(() => import("./pages/WhatIf"));
 const Model = lazy(() => import("./pages/Model"));
 
 function currentRoute(): Route {
@@ -63,6 +64,7 @@ export default function App() {
     ["replay", "Match replay"],
     ["explorer", "Explorer"],
     ["player", "Players"],
+    ["whatif", "What if?"],
     ["model", "The model"],
   ] as const;
 
@@ -90,6 +92,8 @@ export default function App() {
               <Explorer index={index} />
             ) : route.page === "player" ? (
               <Players index={index} playerId={route.arg} />
+            ) : route.page === "whatif" ? (
+              <WhatIf />
             ) : route.page === "model" ? (
               <Model index={index} />
             ) : (

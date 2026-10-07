@@ -15,9 +15,9 @@ const LABEL: Record<string, string> = {
   model: "Chaseline model (final, chosen on 2025)",
 };
 const ORDER = ["coin_flip", "rrr_rule", "logit", "gbm_basic", "gbm_full", "gbm_env", "model"];
-const describe = (c: { features: string; half_life: number | null; era: boolean; recal: string }) =>
+const describe = (c: { features: string; half_life: number | null; era: boolean; recal: string; momentum?: boolean }) =>
   [c.features === "env" ? "scoring environment" : "basic inputs", c.half_life ? `recency weights (half-life ${c.half_life} seasons)` : "equal weights",
-    c.era ? "Impact Player era flag" : "no era flag", c.recal === "none" ? "no recalibration" : `${c.recal} recalibration`].join(", ");
+    c.era ? "Impact Player era flag" : "no era flag", c.recal === "none" ? "no recalibration" : `${c.recal} recalibration`, ...(c.momentum ? ["momentum"] : [])].join(", ");
 const f4 = (n: number) => n.toFixed(4);
 
 function CalTable({ bins }: { bins: CalBin[] }) {
@@ -132,6 +132,9 @@ export default function Model({ index }: { index: SiteIndex }) {
           {Math.abs(m.holdout.model.brier - m.holdout.gbm_env.brier) < 0.002
             ? " The fixes did not help: on the validation season they were no better than the plain model, so the validation season could not pick a clear winner and the under-prediction remains."
             : m.holdout.model.brier < m.holdout.gbm_env.brier ? " The fixes helped, though not fully." : " The fixes did not help on the test season."}
+          {m.momentum_test && (
+            <> Momentum inputs (dot balls and boundaries in the last 12 balls) were tried on top of the best set-up: validation Brier {f4(m.momentum_test.without)} without, {f4(m.momentum_test.with)} with, so they were {m.momentum_test.adopted ? "kept" : "not kept"}.</>
+          )}
           {" "}Some candidates were much worse: isotonic recalibration fitted on a single season produces hard 0% and 100% steps and can fail badly.
         </p>
       </section>
